@@ -43,11 +43,13 @@ void StratoLPC::FlightMode()
         // wait for a Zephyr GPS message to set the time before moving on
         log_debug("FL Wait for GPS Time");
         if (time_valid)
+        //if(true)
         {
             // On the first call for flight mode we set the nexr warmup period to occur on the next
             // hour.   After that the measurements occur every x minutes after the hour
             StartTime = Get_Next_Hour(); // Get the next whole hour
             scheduler.AddAction(START_WARMUP, StartTime);  //start the measurement on the next whole hour
+            //scheduler.AddAction(START_WARMUP, 10); //For testing start in 10 seconds
             inst_substate = FL_IDLE; // automatically go to idle
             log_nominal("Entering FL_IDLE");
         }
@@ -62,12 +64,12 @@ void StratoLPC::FlightMode()
             StartTimeSeconds = now();
             Serial.print("StartTimeSeconds Updated to: ");
             Serial.println(StartTimeSeconds);
-            digitalWrite(PHA_PWR, HIGH); //turn on the optical head
+            digitalWrite(PHA_POWER, HIGH); //turn on the optical head
             TempLaser = OPC.MeasureLTC2983(8);  // Laser temp on Ch 8: Thermistor 44006 10K@25C
             if ((TempLaser > -200) && (TempLaser < Set_LaserTemp))
-                digitalWrite(LASER_HEATER, HIGH);
+                digitalWrite(HEATER1, HIGH);  //Laser heater on heater channel 1
             if (TempLaser > (Set_LaserTemp + DeadBand))
-                digitalWrite(LASER_HEATER, LOW);
+                digitalWrite(HEATER1, LOW);
             scheduler.AddAction(START_FLUSH, Set_warmUpTime);
             inst_substate = FL_WARMUP;
             log_nominal("Entering FL_WARMUP");
@@ -80,17 +82,17 @@ void StratoLPC::FlightMode()
         {
             //ZephyrLogFine("Starting flush");
 
-            digitalWrite(LASER_HEATER, LOW); //turn off the laser heater
-            digitalWrite(MFS_PWR, HIGH);  //Turn on Mass Flow Sensor
-            Wire2.begin();//Activate  Bus I2C
-            digitalWrite(DCDC_PWR, HIGH); //Turn on DC-DC converter for pumps
+            digitalWrite(HEATER1, LOW); //turn off the laser heater
+            //digitalWrite(MFS_PWR, HIGH);  //Turn on Mass Flow Sensor
+            //Wire2.begin();//Activate  Bus I2C
+            //digitalWrite(DCDC_PWR, HIGH); //Turn on DC-DC converter for pumps
             /* Turn on pumps in sequence */
-            digitalWrite(PUMP1, HIGH);
+            analogWrite(PUMP1_PWR, BEMF1_pwm);
             delay(200);
-            digitalWrite(PUMP2, HIGH);
-            OPC_SERIAL.begin(500000);  //PHA serial speed = 0.5Mb
+            analogWrite(PUMP2_PWR, BEMF2_pwm);
+            OPCSERIAL.begin(500000);  //PHA serial speed = 0.5Mb
             delay(500);
-            OPC_SERIAL.setTimeout(2000); //Set the serial timout to 2s
+            OPCSERIAL.setTimeout(2000); //Set the serial timout to 2s
             scheduler.AddAction(START_MEASUREMENT, Set_FlushingTime);
             inst_substate = FL_FLUSH;
             log_nominal("Entering FL_FLUSH");
@@ -106,14 +108,17 @@ void StratoLPC::FlightMode()
 
             inst_substate = FL_MEASURE;
             Frame = 0;
-            OPC_SERIAL.flush();
+            OPCSERIAL.flush();
             log_nominal("Entering FL_MEASURE");
         }
         log_debug("FL Flush");
         break;
             
     case FL_MEASURE:
-        if(OPC_SERIAL.available())
+        
+        MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
+            
+        if(OPCSERIAL.available())
         {
             inByte = 0;
             int indx = 0;
@@ -121,9 +126,9 @@ void StratoLPC::FlightMode()
             
             while(inByte != '\n' && indx < PHA_BUFFER_SIZE) //Read the data byte by byte until we hit an EOL or timeout
             {
-                if(OPC_SERIAL.available())
+                if(OPCSERIAL.available())
                 {
-                    inByte = OPC_SERIAL.read();
+                    inByte = OPCSERIAL.read();
                     PHAArray[indx] = inByte;
                     indx++;
                 }
@@ -139,7 +144,7 @@ void StratoLPC::FlightMode()
             if(inByte != '\n')  //if we exited due to a timeout
             {
                 ErrorCount++;
-                OPC_SERIAL.flush();
+                OPCSERIAL.flush();
             }
            
             else
@@ -152,12 +157,16 @@ void StratoLPC::FlightMode()
                 Serial.print("Pulse Count: ");
                 Serial.println(PHA_PulseCount);
                 
+                /*Adjust the Pump Back EMF */
+                AdjustPumps();
                 /* Get the HK Data once for every averaged sample */
                 if(Frame%Set_samplesToAverage == 0)
                 {
                     log_debug("collecting HK");
 
-                    //Flow = getFlow();  //get flow from MFS
+                    Flow = getFlow();  //get flow from MFS
+                    Serial.print("Flow: ");
+                    Serial.println(Flow);
                     ReadHK(Frame/Set_samplesToAverage);  //read the HK and put in array (note integer division)
                     CheckTemps();
 

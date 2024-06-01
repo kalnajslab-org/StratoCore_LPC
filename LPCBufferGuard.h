@@ -16,8 +16,8 @@
 // HardwareSerial_h") and change any buffer sizes desired from the 64-byte 
 // default.
 // -------------- Strateole 2 Buffer Changes --------------
-// #define SERIAL1_RX_BUFFER_SIZE     64
-// #define SERIAL2_RX_BUFFER_SIZE     64
+// #define SERIAL1_RX_BUFFER_SIZE     2048
+// #define SERIAL2_RX_BUFFER_SIZE     1024
 // #define SERIAL3_RX_BUFFER_SIZE     64
 // #define SERIAL4_RX_BUFFER_SIZE     64
 // #define SERIAL5_RX_BUFFER_SIZE     64
@@ -30,14 +30,14 @@
 #include "HardwareSerial.h" // not necessary, but makes it easy to find the file with a smart IDE
 
 #ifndef SERIAL1_RX_BUFFER_SIZE
-#error "Need to redefine the Serial1 buffer size to 64"
+#error "Need to redefine the Serial1 buffer size to 2048"
 #elif SERIAL1_RX_BUFFER_SIZE != 2048 // PHA sends lots of data
-#error "Serial1 buffer should be 64 bytes"
+#error "Serial1 buffer should be 2048 bytes"
 #endif
 
 #ifndef SERIAL2_RX_BUFFER_SIZE
 #error "Need to redefine the Serial2 buffer size to 1024"
-#elif SERIAL2_RX_BUFFER_SIZE != 512 // keep a little headroom for Zephyr
+#elif SERIAL2_RX_BUFFER_SIZE != 1024 // keep a little headroom for Zephyr
 #error "Serial2 buffer should be 1024 bytes"
 #endif
 

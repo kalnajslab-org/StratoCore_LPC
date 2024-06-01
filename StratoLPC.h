@@ -6,25 +6,27 @@
  *  This file declares an Arduino library (C++ class) that inherits
  *  from the StratoCore class. It serves as both a template and test
  *  class for inheriting from the StratoCore.
+ * Updated Arpil 2024 for LOPC main board rev F/G and Teensy 4.1
  */
 
 #ifndef STRATOLPC_H
 #define STRATOLPC_H
 
 #include "StratoCore.h"
-#include "LOPCLibrary_v1.h"
-#include <i2c_t3.h>  //specialized Teensy 3.6 version of arduino i2c library
+#include "LOPCLibrary_revF.h"  //updated library for Teensy 4.1
+//#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
 
 // for testing purposes, use LPC
-#define ZEPHYR_SERIAL   Serial2 // LPC
+#define ZEPHYR_SERIAL   Serial8 // LPC - Teensy 4.1
 #define INSTRUMENT      LPC
+#define ZEPHYR_SERIAL_BUFFER_SIZE 2048
+
 
 // number of loops before a flag becomes stale and is reset
 #define FLAG_STALE      2
 
 // hardcoded limits for LPC
 #define T_PUMP_SHUTDOWN 75.0 // Max operating temperature for rotary vane pump
-#define T_CONVERTER_SHUTDOWN 90.0  // Max operating temperature for DC-DC converter
 
 #define PHA_BUFFER_SIZE 4096
 
@@ -50,6 +52,8 @@ public:
     // called at the end of each loop
     void InstrumentLoop();
 
+   
+
 private:
     // Mode functions (implemented in unique source files)
     void StandbyMode();
@@ -64,6 +68,7 @@ private:
   //  time_t Next_Start_Time(time_t);
     void ReadHK(int);
     void CheckTemps();
+    void AdjustPumps();
     float getFlow();
     int parsePHA(int);
     void fillBins(int,int);
@@ -83,6 +88,9 @@ private:
     // Monitor the action flags and clear old ones
     void WatchFlags();
     
+    //Teensy 4.1 Serial buffer
+    uint8_t OPC_serial_RX_buffer[PHA_BUFFER_SIZE];
+
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
     int Set_numberSamples = 150; //number of samples to collect for each measurement
@@ -91,6 +99,7 @@ private:
     int Set_warmUpTime = 50; //Warm up time in seconds
     int Set_LaserTemp = 10;  //target Laser Temperature
     int Set_FlushingTime = 10; //Flushing Time in seconds
+    /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins
     
@@ -103,6 +112,7 @@ private:
     uint16_t HKData[16][300];  //Array to store HK data
     TimeElements StartTime;
     time_t StartTimeSeconds;
+    uint32_t MeasurementStartTime; //actually a time_t, set to uint32_t for overloaded TM function in XMLwriter
     
     /*Global Variables */
     
@@ -111,7 +121,6 @@ private:
     float TempPump2;
     float TempInlet;
     float TempLaser;
-    float TempDCDC;
     float VBat;
     float VTeensy;
     float VMotors;
@@ -125,6 +134,19 @@ private:
     float VDetector;
     float VPHA;
     float Pressure;
+    
+    /*Variables Related to Pump Back EMF Control */
+    int backEMF1 = 0;
+    int backEMF2 = 0;
+    float BEMF1_V = 0;
+    float BEMF2_V = 0;
+    float BEMF1_SP = 7.8; //Set point for large pumps
+    float BEMF2_SP = 7.8; //Set point for large pumps
+    float error1 = 0.0;
+    float error2 = 0.0;
+    float Kp = 30.0;
+    int BEMF1_pwm = 512;
+    int BEMF2_pwm = 512;
     
     /*PHA HK Variables*/
     long PHA_TimeStamp = 0;

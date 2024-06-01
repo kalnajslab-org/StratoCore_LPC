@@ -2,10 +2,14 @@
  *  StratoLPC.cpp
  *  Author:  Alex St. Clair
  *  Created: June 2019
+ *  Updated: November 2020 (LEK)
  *  
  *  This file implements an Arduino library (C++ class) that inherits
  *  from the StratoCore class. It serves as both a template and test
  *  class for inheriting from the StratoCore.
+ * 
+ *  Updated in Novemeber 2020 to work with the LOPC main board Rev D
+ *  Updated in Arpil 2024 to work with LOPC Main board Rev F / G
  */
 
 #include "StratoLPC.h"
@@ -17,22 +21,19 @@ StratoLPC::StratoLPC()
 }
 
 void StratoLPC::InstrumentSetup()
-{
-    // for LPC RS232 transceiver for testing
-    pinMode(29, OUTPUT);
-    pinMode(30, OUTPUT);
-    digitalWrite(29, HIGH);
-    digitalWrite(30, HIGH);
-    
+{   
     OPC.SetUp();  //Setup the board
     OPC.ConfigureChannels(); //Setup the LTC2983 Channels
-    
+
     /*Figure out haw many High Gain and Low Gain Bins we Have */
     NumberHGBins = sizeof(Set_HGBinBoundaries)/sizeof(Set_HGBinBoundaries[0]) - 1;
     NumberLGBins = sizeof(Set_LGBinBoundaries)/sizeof(Set_LGBinBoundaries[0]) - 1;
     
     /*set the data array to zeros so we can co-add to it */
     memset(BinData,0,sizeof(BinData));
+    
+    OPCSERIAL.addMemoryForRead(&OPC_serial_RX_buffer, sizeof(OPC_serial_RX_buffer));
+    Wire.begin();//Activate  Bus I2C for Mass Flow Meter
 }
 
 void StratoLPC::InstrumentLoop()
@@ -137,18 +138,17 @@ void StratoLPC::WatchFlags()
 void StratoLPC::LPC_Shutdown()
 {
     // Make sure everything is off while we wait for a mode
-    digitalWrite(PUMP1, LOW); //turn off pump1
-    digitalWrite(PUMP2, LOW); //turn off pump2
-    digitalWrite(DCDC_PWR, LOW); //turn off the DC-DC converter
-    
+    analogWrite(PUMP1_PWR, 0); //turn off pump1
+    analogWrite(PUMP2_PWR, 0); //turn off pump2
+
     /*disable Serial port to stop backdriving PHA*/
     pinMode(0,INPUT);
     pinMode(1,INPUT);
     digitalWrite(1, LOW);
     
-    digitalWrite(MFS_PWR, LOW); //Turn off AFS
-    digitalWrite(PHA_PWR, LOW); //Turn off Optical Head
-    digitalWrite(LASER_HEATER, LOW); //Turn off Laser Heater
+    digitalWrite(MFS_POWER, LOW); //Turn off AFS
+    digitalWrite(PHA_POWER, LOW); //Turn off Optical Head
+    digitalWrite(HEATER1, LOW); //Turn off Laser Heater
     digitalWrite(HEATER2, LOW); //Turn of unused heater
 }
 
@@ -196,28 +196,44 @@ void StratoLPC::ReadHK(int record)
      * Read the analog data from Teensy channels and convert to real units
      * and read temperatures from LTC2983 part.  Put these values into an array to telemeter.
      */
-    
-    HKData[0][record] = now(); //save the current time - not sure what happens converting time_t to float.
-    IPump1 = 4.7922*analogRead(I_PUMP1) - 2653;  // Pump Current in mA
+ 
+ long I1_Bits = 0;
+ long I2_Bits = 0;
+ long ID_Bits = 0;
+ int i = 0;  
+ int StartTime = millis();
+ 
+ while (millis() - StartTime < 10) //Average pump current for 10ms to make sure we get a full pwm cycle
+ {
+    I1_Bits += analogRead(I_PUMP1);
+    I2_Bits += analogRead(I_PUMP2);
+    ID_Bits += analogRead(PHA_I);
+    i++;
+ }
+ 
+  IPump1 = (I1_Bits/i)/4095.0 * 30000; // Pump Current in mA
+  IPump2 = (I2_Bits/i)/4095.0 * 30000; // Pump Current in mA
+  IDetector = (ID_Bits/i)/1.058; //Detector Current in mA
+
+
+    HKData[0][record] = (uint16_t) (now() - MeasurementStartTime); //save the elapsed time since we started.
     HKData[1][record] = (uint16_t) IPump1; //Current in mA
-    IPump2 = 4.5502*analogRead(I_PUMP2) - 2410;//for LOPC-0001
     HKData[2][record] = (uint16_t) IPump2; //Current in mA
-    IHeater1 = analogRead(I_HEATER1)/1.058;
-    HKData[3][record] = (uint16_t) IHeater1;  //Current in mA
-    IDetector = analogRead(I_DETECTOR)/1.058;
+    IHeater1 = analogRead(HEATER1_I)/1.058;
+    HKData[3][record] = (uint16_t) IHeater1;  //Current in mA 
     HKData[4][record] = (uint16_t) IDetector;  //Current in mA
-    VDetector = analogRead(PHA_12V_MON)*3.0/4095.0*5.993;
+    VDetector = analogRead(PHA_12V_V)*3.3/4095.0*5.993;
     HKData[5][record] = (uint16_t) (VDetector * 1000.0);  //Volts in mV
-    VPHA = analogRead(PHA_3V3_MON)*3.0/4095.0*2.0;
+    VPHA = analogRead(PHA_3V3_V)*3.3/4095.0*2.0;
     HKData[6][record] = (uint16_t) (VPHA * 1000.0); //Volts in mV
-    Pressure = (analogRead(PRESS)/4095.0*3.162/3.00 + 0.095)/0.0009;
-    HKData[7][record] = (uint16_t) (Pressure * 100.0); //Pressure in Pa
-    VBat = analogRead(BAT_V_MON)*3.0/4095.0 *6.772;
+    VTeensy = analogRead(TEENSY_3V3)*3.3/4095.0*2.0;
+    HKData[7][record] = (uint16_t) (VTeensy * 1000.0); //volte in mV
+    VBat = analogRead(BATTERY_V)*3.3/4095.0 *6.772;
     HKData[8][record] = (uint16_t) (VBat * 1000.0);
-    VTeensy = analogRead(TEENSY_V_MON)*3.0/4095.0*2.0;
-    HKData[9][record] = (uint16_t) (VTeensy * 1000.0);
-    VMotors = analogRead(MOTOR_V_MON)*3.0/4095.0*5.993;
-    HKData[10][record] = (uint16_t) (VMotors * 1000.0);
+    Flow = getFlow(); //get the flow in LPM
+    HKData[9][record] = (uint16_t)(Flow * 1000); //Flow in ccm
+//    VMotors = analogRead(MOTOR_V_MON)*3.0/4095.0*5.993;
+//    HKData[10][record] = (uint16_t) (VMotors * 1000.0);
     
     /* Reads temperatures from the LTC part*/
     
@@ -227,8 +243,8 @@ void StratoLPC::ReadHK(int record)
     HKData[12][record] = (uint16_t) (TempPump2 + 273.15) * 100.0; //Kelvin * 100
     TempLaser = OPC.MeasureLTC2983(8);
     HKData[13][record] = (uint16_t) (TempLaser + 273.15) * 100.0; //Kelvin * 100
-    TempDCDC = OPC.MeasureLTC2983(12);
-    HKData[14][record] = (uint16_t) (TempDCDC + 273.15) * 100.0; //Kelvin * 100
+ //   TempDCDC = OPC.MeasureLTC2983(12);
+ //   HKData[14][record] = (uint16_t) (TempDCDC + 273.15) * 100.0; //Kelvin * 100
     TempInlet = OPC.MeasureLTC2983(14);
     HKData[15][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
     
@@ -243,25 +259,48 @@ void StratoLPC::CheckTemps(void)
     /* Pump 1 */
     if (TempPump1 > T_PUMP_SHUTDOWN) // If over maximum temperature shutdown
     {
-        digitalWrite(PUMP1, LOW);
+        digitalWrite(PUMP1_PWR, LOW);
         //inst_substate = FL_ERROR;
     }
     
     /* Pump 2 */
     if (TempPump2 > T_PUMP_SHUTDOWN) // If over maximum temperature shutdown
     {
-        digitalWrite(PUMP2, LOW);
-        //inst_substate = FL_ERROR;
-    }
-    
-    /* DC-DC Converter - we add a flag to this so we don's accidently restart the converter if it is in thermal shutdown*/
-    if (TempDCDC > T_CONVERTER_SHUTDOWN) // If over maximum temperature shutdown
-    {
-        digitalWrite(DCDC_PWR, LOW);
+        digitalWrite(PUMP2_PWR, LOW);
         //inst_substate = FL_ERROR;
     }
     
     
+}
+
+void StratoLPC::AdjustPumps()
+{
+  int i = 0;
+  analogWrite(PUMP1_PWR, 0); //Turn off Pump1
+  delayMicroseconds(500); //Hold off for spike to collapse
+  
+  for(i = 0; i < 32 ; i++)
+    backEMF1 += analogRead(PUMP1_BEMF); 
+
+  BEMF1_V = VBat - backEMF1/(4095.0*32.0)*18.0;
+  error1 = BEMF1_V - BEMF1_SP;
+  BEMF1_pwm = int(BEMF1_pwm - error1*Kp);
+  analogWrite(PUMP1_PWR, BEMF1_pwm);
+  delay(10);
+  
+  analogWrite(PUMP2_PWR, 0); //Turn off Pump1
+  delayMicroseconds(500); //Hold off for spike to collapse
+  
+  for(i = 0; i < 32 ; i++)
+    backEMF2 += analogRead(PUMP2_BEMF); 
+
+  BEMF2_V = VBat - backEMF2/(4095.0*32.0)*18.0;
+  error2 = BEMF2_V - BEMF2_SP;
+  BEMF2_pwm = int(BEMF2_pwm - error2*Kp);
+  analogWrite(PUMP2_PWR, BEMF2_pwm);
+
+  backEMF1 = 0;
+  backEMF2 = 0;
 }
 
 float StratoLPC::getFlow()
@@ -273,12 +312,12 @@ float StratoLPC::getFlow()
     int digital_output;
     float flow;
     
-    Wire2.requestFrom(sensor,2); //Request data from sensor, 2 bytes at a time
-    aa = Wire2.read(); //Get first byte
-    bb = Wire2.read(); //Get second byte
+    Wire.requestFrom(sensor,2); //Request data from sensor, 2 bytes at a time
+    aa = Wire.read(); //Get first byte
+    bb = Wire.read(); //Get second byte
     digital_output=aa<<8;
     digital_output=digital_output+bb; //Combine bytes into an integer
-    flow = 20.0*((digital_output/16383.0)-0.1)/0.8; //Convert digital output into correct air flow
+    flow = 20.0*((digital_output/16383.0)-0.1)/0.8*2.66; //Convert digital output into correct air flow
     
     //Return correct value
     return flow;
@@ -295,8 +334,8 @@ int StratoLPC::parsePHA(int charsToParse) {
     memset(LGArray, -999, sizeof(LGArray)); //initialize int arays to -999 so we
     memset(HGArray, -999, sizeof(HGArray)); //know if there are missing values.
     
-    //DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
-    //DEBUG_SERIAL.println(PHAArray);
+    DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
+    DEBUG_SERIAL.println(PHAArray);
     
     strtokIndx = strtok(PHAArray,",");      // get the first part - the timestamp
     PHA_TimeStamp = atoi(strtokIndx);
@@ -317,13 +356,13 @@ int StratoLPC::parsePHA(int charsToParse) {
             HGArray[i] = atoi(strtokIndx);     // convert this part to an integer
             //StringBins += HGArray[i];  // Add value to string to write to SD Card
             //StringBins += ',';
-            // DEBUG_SERIAL.print(HGArray[i]);
-            // DEBUG_SERIAL.print(",");
+            //Serial.print(HGArray[i]);
+            //Serial.print(",");
         }
         else
             return -1;
     }
-    //DEBUG_SERIAL.println();
+    DEBUG_SERIAL.println();
     //Get the next 255 fields as LG array
     for(i = 255; i > 0; i--)
     {
@@ -333,13 +372,13 @@ int StratoLPC::parsePHA(int charsToParse) {
             LGArray[i] = atoi(strtokIndx);     // convert this part to an integer
             //StringBins += LGArray[i];  // Add value to string to write to SD Card
             //StringBins += ',';
-            // DEBUG_SERIAL.print(LGArray[i]);
-            // DEBUG_SERIAL.print(",");
+            DEBUG_SERIAL.print(LGArray[i]);
+            DEBUG_SERIAL.print(",");
         }
         else
             return -1;
     }
-    //DEBUG_SERIAL.println();
+    DEBUG_SERIAL.println();
     return 1;
     
 }
@@ -396,11 +435,10 @@ void StratoLPC::PackageTelemetry(int Records)
         flag1 = false;
     if ((TempLaser > 50.0) || (TempLaser < -30.0))
         flag1 = false;
-    if ((TempDCDC > 75.0) || (TempDCDC < -30.0))
-        flag1 = false;
+    
     
     /*Check Voltages are in range */
-    if ((VBat > 19.0) || (VBat < 12.0))
+    if ((VBat > 18.0) || (VBat < 14.0))
         flag2 = false;
    
     
@@ -416,8 +454,6 @@ void StratoLPC::PackageTelemetry(int Records)
     Message.concat(TempPump2);
     Message.concat(',');
     Message.concat(TempLaser);
-    Message.concat(',');
-    Message.concat(TempDCDC);
     zephyrTX.setStateDetails(1, Message);
     Message = "";
     
@@ -436,6 +472,17 @@ void StratoLPC::PackageTelemetry(int Records)
 
 
     /* Build the telemetry binary array */
+    
+    /* Add the initial timestamp */
+    zephyrTX.addTm(MeasurementStartTime);
+    
+    
+    for(n = 0; n < NumberHKChannels; n++) //add all the initial HK values
+    {
+        zephyrTX.addTm(HKData[n][0]);
+        HKData[n][m] = 0;
+        i++;
+    }
     
     for (m = 0; m < Records; m++)
     {
