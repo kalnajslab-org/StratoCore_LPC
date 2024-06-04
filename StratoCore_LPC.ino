@@ -1,8 +1,3 @@
-#include <StratoCore.h>
-#include <StratoGroundPort.h>
-#include <StratoSD.h>
-#include <StratoScheduler.h>
-
 /*  StratoCore_LPC.ino
  *  Author: Alex St. Clair
  *  Created: June 2019
