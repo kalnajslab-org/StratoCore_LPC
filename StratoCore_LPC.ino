@@ -51,6 +51,11 @@ void WaitForControlTimer(void) {
 void setup()
 {
   Serial.begin(115200);
+  Serial.print("StratoCore_LPC build ");
+  Serial.print(__DATE__);
+  Serial.print(" ");
+  Serial.println(__TIME__);
+
   ZEPHYR_SERIAL.begin(115200);
 
   //Increase serial buffer sizes for Teensy 4.1
