@@ -24,8 +24,8 @@
 
 /// How often to sample the RS41 during flight mode
 #define RS41_SAMPLE_PERIOD_SECS 1
-/// The number of RS41 samples to include in the RS41 telemetry
-#define RS41_N_SAMPLES_TO_REPORT 10
+/// The telemetry reporting period of RS41 samples
+#define RS41_N_SAMPLES_TO_REPORT 600
 
 // number of loops before a flag becomes stale and is reset
 #define FLAG_STALE      2
@@ -50,12 +50,12 @@ enum ScheduleAction_t : uint8_t {
 };
 
 struct RS41Sample_t {
-    bool valid;
-    unsigned int frame;
-    double tdry;
-    double humidity;
-    double pres;
-    unsigned int error;
+    uint8_t valid;
+    uint32_t frame;
+    uint16_t tdry;
+    uint16_t humidity;
+    uint16_t pres;
+    uint16_t error;
 };
 
 class StratoLPC : public StratoCore {
@@ -97,6 +97,8 @@ private:
     /// If RS41_N_SAMPLES_TO_REPORT have been collected,
     /// transmit them as a data packet.
     void check_rs41_and_transmit();
+    /// @brief Send an RS41 telemetry package
+    void SendRS41Telemetry(uint32_t sample_start_time, RS41Sample_t* rs41_sample_array, int n_samples);
 
     LOPCLibrary OPC;  //Creates an instance of the OPC
     RS41 _rs41; // The RS41 sensor
@@ -196,6 +198,7 @@ private:
     // RS41 member variables
     int _n_rs41_samples = 0;
     RS41Sample_t _rs41_samples[RS41_N_SAMPLES_TO_REPORT];
+    uint32_t _rs41_sample_array_start_time;
 
     // Actions
     ActionFlag_t action_flags[NUM_ACTIONS] = {{0}}; // initialize all flags to false

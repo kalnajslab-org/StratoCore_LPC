@@ -520,3 +520,75 @@ void StratoLPC::PackageTelemetry(int Records)
     //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
 }
 
+void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_sample_array, int n_samples)
+{
+    // Calculate the size of a transmitted data frame
+    int sample_bytes = 
+    sizeof(rs41_sample_array[0].valid) + 
+    sizeof(rs41_sample_array[0].frame) + 
+    sizeof(rs41_sample_array[0].tdry) + 
+    sizeof(rs41_sample_array[0].humidity) + 
+    sizeof(rs41_sample_array[0].pres) + 
+    sizeof(rs41_sample_array[0].error); 
+
+    String Message = "";
+
+    // First Field
+    Message = "";
+    bool flag1 = true;
+    for (int i = 0; i < n_samples; i++) {
+        flag1 = flag1 & !rs41_sample_array[i].error;
+    }
+    if (flag1) {
+        zephyrTX.setStateFlagValue(1, FINE);
+    } else {
+        zephyrTX.setStateFlagValue(1, WARN);
+    } 
+    zephyrTX.setStateDetails(1, Message);
+
+    // Second Field
+    Message = "";
+    bool flag2 = true;
+    for (int i = 0; i < n_samples; i++) {
+        flag1 = flag1 & rs41_sample_array[i].valid;
+    }
+    if (flag2) {
+        zephyrTX.setStateFlagValue(2, FINE);
+    } else {
+        zephyrTX.setStateFlagValue(2, WARN);
+    }
+    zephyrTX.setStateDetails(2, Message);
+
+    // Build the telemetry binary data array
+    
+    // Add the initial timestamp
+    zephyrTX.addTm(rs41_start_time);
+
+    // And the number of samples
+    zephyrTX.addTm(uint16_t(n_samples));
+    
+    // Add the samples
+    for (int i = 0; i < n_samples; i++)
+    {
+            zephyrTX.addTm(rs41_sample_array[i].valid);
+            zephyrTX.addTm(rs41_sample_array[i].frame);
+            zephyrTX.addTm(rs41_sample_array[i].tdry);
+            zephyrTX.addTm(rs41_sample_array[i].humidity);
+            zephyrTX.addTm(rs41_sample_array[i].pres);
+            zephyrTX.addTm(rs41_sample_array[i].error);
+    }
+
+    //zephyrTX.addTm((uint16_t) 0xFFFF);
+
+    Serial.print("Sending RS41 samples: ");
+    Serial.println(n_samples);
+    Serial.print("Sending Bytes: ");
+    Serial.println(n_samples*(sample_bytes));
+
+    /* send the TM packet to the OBC */
+    zephyrTX.TM();
+    
+    //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
+    //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
+}
+
