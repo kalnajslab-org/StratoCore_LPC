@@ -16,7 +16,8 @@
 
 StratoLPC::StratoLPC()
     : StratoCore(&ZEPHYR_SERIAL, INSTRUMENT),
-    OPC(13)
+    OPC(13),
+    _rs41(Serial7)
 {
 }
 
@@ -34,6 +35,7 @@ void StratoLPC::InstrumentSetup()
     
     OPCSERIAL.addMemoryForRead(&OPC_serial_RX_buffer, sizeof(OPC_serial_RX_buffer));
     Wire.begin();//Activate  Bus I2C for Mass Flow Meter
+
 }
 
 void StratoLPC::InstrumentLoop()
@@ -517,5 +519,4 @@ void StratoLPC::PackageTelemetry(int Records)
     //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
     //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
 }
-
 

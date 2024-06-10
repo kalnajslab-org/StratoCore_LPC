@@ -15,12 +15,17 @@
 #include "StratoCore.h"
 #include "LOPCLibrary_revF.h"  //updated library for Teensy 4.1
 //#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
+#include "RS41.h"
 
 // for testing purposes, use LPC
 #define ZEPHYR_SERIAL   Serial8 // LPC - Teensy 4.1
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 2048
 
+/// How often to sample the RS41 during flight mode
+#define RS41_SAMPLE_PERIOD_SECS 1
+/// The number of RS41 samples to include in the RS41 telemetry
+#define RS41_N_SAMPLES_TO_REPORT 10
 
 // number of loops before a flag becomes stale and is reset
 #define FLAG_STALE      2
@@ -31,6 +36,8 @@
 #define PHA_BUFFER_SIZE 4096
 
 // todo: perhaps more creative/useful enum here by mode with separate arrays?
+// WARNING: this construct assumes that NUM_ACTIONS will be equal to the number
+// of actions. Never seen this coding style before; seems dangerous.
 enum ScheduleAction_t : uint8_t {
     NO_ACTION = NO_SCHEDULED_ACTION,
     SEND_IMR,
@@ -38,7 +45,17 @@ enum ScheduleAction_t : uint8_t {
     START_FLUSH,
     START_MEASUREMENT,
     RESEND_SAFETY,
+    RS41_SAMPLE,
     NUM_ACTIONS
+};
+
+struct RS41Sample_t {
+    bool valid;
+    unsigned int frame;
+    double tdry;
+    double humidity;
+    double pres;
+    unsigned int error;
 };
 
 class StratoLPC : public StratoCore {
@@ -51,8 +68,6 @@ public:
 
     // called at the end of each loop
     void InstrumentLoop();
-
-   
 
 private:
     // Mode functions (implemented in unique source files)
@@ -74,7 +89,17 @@ private:
     void fillBins(int,int);
     void PackageTelemetry(int);
     
+    // RS41 Functions
+    /// @brief (Re)start the RS41 measurement action.
+    void start_rs41();
+    /// @brief See if the RS41 action has been triggered.
+    /// If so, collect a sample and reset the action.
+    /// If RS41_N_SAMPLES_TO_REPORT have been collected,
+    /// transmit them as a data packet.
+    void check_rs41_and_transmit();
+
     LOPCLibrary OPC;  //Creates an instance of the OPC
+    RS41 _rs41; // The RS41 sensor
     
     // Telcommand handler - returns ack/nak
     bool TCHandler(Telecommand_t telecommand);
@@ -168,7 +193,11 @@ private:
     int HGBins[16]; //int array for downsampled data
     int LGBins[16]; // int array for downsampled data
     
+    // RS41 member variables
+    int _n_rs41_samples = 0;
+    RS41Sample_t _rs41_samples[RS41_N_SAMPLES_TO_REPORT];
+
+    // Actions
     ActionFlag_t action_flags[NUM_ACTIONS] = {{0}}; // initialize all flags to false
 };
-
 #endif /* STRATOLPC_H */

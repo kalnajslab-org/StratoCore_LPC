@@ -19,7 +19,6 @@ enum FLStates_t : uint8_t {
     FL_FLUSH,
     FL_MEASURE,
     FL_SEND_TELEMETRY,
-
     FL_ERROR,
     FL_SHUTDOWN = MODE_SHUTDOWN,
     FL_EXIT = MODE_EXIT
@@ -33,6 +32,13 @@ enum FLStates_t : uint8_t {
 //  * it is up to the FL_EXIT logic perform any actions for leaving flight mode
 void StratoLPC::FlightMode()
 {
+    if (inst_substate == FL_ENTRY) {
+        _rs41.init();
+        Serial.println(_rs41.banner());
+        start_rs41();
+    } else {
+        check_rs41_and_transmit();
+    }
     switch (inst_substate) {
     case FL_ENTRY:
         // perform setup
@@ -102,6 +108,7 @@ void StratoLPC::FlightMode()
         break;
     
     case FL_FLUSH:
+
         if (CheckAction(START_MEASUREMENT))
         {
             //ZephyrLogFine("Starting Measurement");
@@ -232,6 +239,45 @@ void StratoLPC::FlightMode()
     }
 }
 
+void StratoLPC::start_rs41() {
+    scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
+}
 
+void StratoLPC::check_rs41_and_transmit() {
+    if (CheckAction(RS41_SAMPLE)) {
+        // Get the RS41 measurement
+        RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
+
+        // Collect the RS41 sample
+        _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
+        _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
+        _rs41_samples[_n_rs41_samples].tdry = rs41_data.air_temp_degC;
+        _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent;
+        _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb;
+        _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
+        _n_rs41_samples++;
+
+        if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
+            // Transmit the RS41 data
+            log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
+            if (0) {
+                for (int i=0; i<RS41_N_SAMPLES_TO_REPORT; i++) {
+                    Serial.println(
+                        String(_rs41_samples[i].valid) + " " +
+                        String(_rs41_samples[i].frame) + " " +
+                        String(_rs41_samples[i].tdry) + " " +
+                        String(_rs41_samples[i].humidity) + " " +
+                        String(_rs41_samples[i].pres) + " " +
+                        String(_rs41_samples[i].error)
+                    );
+                }
+            }
+            _n_rs41_samples = 0;
+        }
+        
+        // Schedule the next measurement
+        start_rs41();
+    }
+}
 
 
