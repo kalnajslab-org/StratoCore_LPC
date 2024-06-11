@@ -259,6 +259,10 @@ void StratoLPC::check_rs41_and_transmit() {
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
         _n_rs41_samples++;
 
+        if(1) {
+            printRS41data(rs41_data);
+        }
+
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
             // Transmit the RS41 data
             SendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
@@ -282,4 +286,29 @@ void StratoLPC::check_rs41_and_transmit() {
         // Schedule the next measurement
         start_rs41();
     }
+}
+
+void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
+    String comma(",");
+    String csv_str = 
+        String(rs41_data.valid) + comma +
+        String(rs41_data.frame_count) + comma +
+        String(rs41_data.air_temp_degC) + comma +
+        String(rs41_data.humdity_percent) + comma +
+        String(rs41_data.hsensor_temp_degC) + comma +
+        String(rs41_data.pres_mb) + comma +
+        String(rs41_data.internal_temp_degC) + comma +
+        String(rs41_data.module_status) + comma +
+        String(rs41_data.module_error) + comma +
+        String(rs41_data.pcb_supply_V) + comma +
+        String(rs41_data.lsm303_temp_degC) + comma +
+        String(rs41_data.pcb_heater_on) + comma +
+        String(rs41_data.mag_hdgXY_deg) + comma +
+        String(rs41_data.mag_hdgXZ_deg) + comma +
+        String(rs41_data.mag_hdgYZ_deg) + comma +
+        String(rs41_data.accelX_mG) + comma +
+        String(rs41_data.accelY_mG) + comma +
+        String(rs41_data.accelZ_mG);
+
+    Serial.println(csv_str);
 }

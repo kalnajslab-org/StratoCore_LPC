@@ -99,6 +99,8 @@ private:
     void check_rs41_and_transmit();
     /// @brief Send an RS41 telemetry package
     void SendRS41Telemetry(uint32_t sample_start_time, RS41Sample_t* rs41_sample_array, int n_samples);
+    /// @brief Send RS41 data to the console
+    void printRS41data(RS41::RS41SensorData_t &rs41_data);
 
     LOPCLibrary OPC;  //Creates an instance of the OPC
     RS41 _rs41; // The RS41 sensor
