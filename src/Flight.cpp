@@ -230,6 +230,7 @@ void StratoLPC::FlightMode()
         break;
     case FL_EXIT:
         LPC_Shutdown();
+        _rs41.pwr_off();
         log_nominal("Exiting FL");
         break;
     default:
