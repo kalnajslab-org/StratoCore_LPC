@@ -22,6 +22,9 @@
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 2048
 
+// RS41 options
+/// Print RS41 samples to the console
+#define RS41_DEBUG_PRINT false
 /// How often to sample the RS41 during flight mode
 #define RS41_SAMPLE_PERIOD_SECS 1
 /// The telemetry reporting period of RS41 samples

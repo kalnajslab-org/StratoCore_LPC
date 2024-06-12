@@ -438,7 +438,6 @@ void StratoLPC::PackageTelemetry(int Records)
     if ((TempLaser > 50.0) || (TempLaser < -30.0))
         flag1 = false;
     
-    
     /*Check Voltages are in range */
     if ((VBat > 18.0) || (VBat < 14.0))
         flag2 = false;
@@ -472,12 +471,10 @@ void StratoLPC::PackageTelemetry(int Records)
     zephyrTX.setStateDetails(2, Message);
     Message = "";
 
-
     /* Build the telemetry binary array */
     
     /* Add the initial timestamp */
     zephyrTX.addTm(MeasurementStartTime);
-    
     
     for(n = 0; n < NumberHKChannels; n++) //add all the initial HK values
     {
@@ -503,21 +500,61 @@ void StratoLPC::PackageTelemetry(int Records)
         }
     }
 
-   
-    
-    //zephyrTX.addTm((uint16_t) 0xFFFF);
-
     Serial.print("Sending Records: ");
     Serial.println(m);
     Serial.print("Sending Bytes: ");
     Serial.println(i);
     
-    
     /* send the TM packet to the OBC */
     zephyrTX.TM();
-    
-    //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
-    //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
+}
+
+void StratoLPC::start_rs41() {
+    scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
+}
+
+void StratoLPC::check_rs41_and_transmit() {
+    if (CheckAction(RS41_SAMPLE)) {
+        // Get the RS41 measurement
+        RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
+
+        // Collect the RS41 sample
+        // Convert to the compressed telemetry format
+        _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
+        _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
+        _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
+        _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
+        _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
+        _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
+        _n_rs41_samples++;
+
+        if(RS41_DEBUG_PRINT) {
+            printRS41data(rs41_data);
+        }
+
+        if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
+            // Transmit the RS41 data
+            SendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
+            log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
+            if (0) {
+                for (int i=0; i<RS41_N_SAMPLES_TO_REPORT; i++) {
+                    Serial.println(
+                        "valid:" + String(_rs41_samples[i].valid) + " " +
+                        "frame:" + String(_rs41_samples[i].frame) + " " +
+                        "tdry:" + String(_rs41_samples[i].tdry/100.0-100.0) + " " +
+                        "humidity:" + String(_rs41_samples[i].humidity/100.0) + " " +
+                        "pres:" + String(_rs41_samples[i].pres/50.0) + " " +
+                        "err:" + String(_rs41_samples[i].error)
+                    );
+                }
+            }
+            _n_rs41_samples = 0;
+            _rs41_sample_array_start_time = now();
+        }
+        
+        // Schedule the next measurement
+        start_rs41();
+    }
 }
 
 void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_sample_array, int n_samples)
@@ -558,8 +595,6 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
         zephyrTX.setStateFlagValue(2, WARN);
     }
     zephyrTX.setStateDetails(2, Message);
-
-    // Build the telemetry binary data array
     
     // Add the initial timestamp
     zephyrTX.addTm(rs41_start_time);
@@ -578,8 +613,6 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
             zephyrTX.addTm(rs41_sample_array[i].error);
     }
 
-    //zephyrTX.addTm((uint16_t) 0xFFFF);
-
     Serial.print("Sending RS41 samples: ");
     Serial.println(n_samples);
     Serial.print("Sending Bytes: ");
@@ -588,7 +621,29 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     /* send the TM packet to the OBC */
     zephyrTX.TM();
     
-    //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
-    //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
 }
 
+void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
+    String comma(",");
+    String csv_str = 
+        String(rs41_data.valid) + comma +
+        String(rs41_data.frame_count) + comma +
+        String(rs41_data.air_temp_degC) + comma +
+        String(rs41_data.humdity_percent) + comma +
+        String(rs41_data.hsensor_temp_degC) + comma +
+        String(rs41_data.pres_mb) + comma +
+        String(rs41_data.internal_temp_degC) + comma +
+        String(rs41_data.module_status) + comma +
+        String(rs41_data.module_error) + comma +
+        String(rs41_data.pcb_supply_V) + comma +
+        String(rs41_data.lsm303_temp_degC) + comma +
+        String(rs41_data.pcb_heater_on) + comma +
+        String(rs41_data.mag_hdgXY_deg) + comma +
+        String(rs41_data.mag_hdgXZ_deg) + comma +
+        String(rs41_data.mag_hdgYZ_deg) + comma +
+        String(rs41_data.accelX_mG) + comma +
+        String(rs41_data.accelY_mG) + comma +
+        String(rs41_data.accelZ_mG);
+
+    Serial.println(csv_str);
+}
