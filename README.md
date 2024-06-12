@@ -62,3 +62,11 @@ sites, and so the library manager can't track revision updates?
 
   Mash the compile button in the Arduino IDE.
 
+## Arduino notes
+
+- Discovered that if a non-void function does not include a return 
+  statement, it will crash the Arduino! It produces a compile
+  warning, when really it should produce a compile error.
+  This [thread](https://github.com/espressif/arduino-esp32/issues/5867),
+  and [this one also](https://stackoverflow.com/questions/57163022/c-crash-on-a-non-void-function-doesnt-have-return-statement)
+  report the same issue.
