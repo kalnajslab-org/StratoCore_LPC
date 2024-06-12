@@ -125,11 +125,11 @@ private:
 
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
-    int Set_numberSamples = 150; //number of samples to collect for each measurement
-    int Set_samplesToAverage = 5; //number of 2 second PHA packets to avergae per sample
-    int Set_cycleTime = 60;  //Time between measurements in minutes
-    int Set_warmUpTime = 50; //Warm up time in seconds
-    int Set_LaserTemp = 10;  //target Laser Temperature
+    int Set_numberSamples = 90; //number of samples to collect for each measurement
+    int Set_samplesToAverage = 1; //number of 2 second PHA packets to avergae per sample
+    int Set_cycleTime = 10;  //Time between measurements in minutes
+    int Set_warmUpTime = 10; //Warm up time in seconds
+    int Set_LaserTemp = -30;  //target Laser Temperature
     int Set_FlushingTime = 10; //Flushing Time in seconds
     /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
