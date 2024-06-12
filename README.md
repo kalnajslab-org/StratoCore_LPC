@@ -6,7 +6,7 @@ after that, but was not submitted to the repo. The repo was
 updated with those modifications on 01-Jun-2024.
 
 This is the main Teensy application for the LPC main board.
-It depends on several other source coderepositories and 
+It depends on several other source code repositories and 
 Arduino libraries.
 
 For the time being, we have decided to put all of the application
@@ -14,19 +14,21 @@ code, including the main board program, in the same `libraries/`
 directory where the Arduino IDE keeps its libraries. This will simplify
 the build environment.
 
-## Installation
+## 1. Installation
 
 There are 3 steps for configuring the development environment:
   1. Install Teensyduino (v1.59.0 or later).
   1. Clone the relevant LPC Arduino code repositories.
   1. Install Arduino libraries.
 
-### Teensyduino
+### 2. Teensyduino
 
 See the download and installation instructions for 
 <a href="https://www.pjrc.com/teensy/td_download.html" target="_blank">Teensyduino</a>.
 
-### LPC Ardduino code repositories
+### 3. LPC Arduino code repositories
+
+Cloned from GitHub:
 
 ```sh
 cd Documents/arduino/libraries # Or wherever your Arduino libraries are
@@ -49,7 +51,7 @@ saved in `StratoCore_LPC/zips`.
 
 - Install our currated libraries, by unzipping the .zip files
   located in `StratoCore_LPC/zips/` into `Documents/arduino/libraries/`.
-  This can be done manually, or using the Arduino IDE library manager
+  This can be done manually, or by using the Arduino IDE library manager
   to install a .zip file.
 
 Note that the zipped libraries won't appear in the Arduino IDE library
