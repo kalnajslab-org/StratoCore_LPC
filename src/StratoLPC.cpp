@@ -24,6 +24,7 @@ StratoLPC::StratoLPC()
 void StratoLPC::InstrumentSetup()
 {   
     OPC.SetUp();  //Setup the board
+    OPC.configure_memory_table(); //This is necessary to load custom thermister coefficients
     OPC.ConfigureChannels(); //Setup the LTC2983 Channels
 
     /*Figure out haw many High Gain and Low Gain Bins we Have */
