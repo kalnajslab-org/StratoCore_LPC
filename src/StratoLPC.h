@@ -12,6 +12,7 @@
 #ifndef STRATOLPC_H
 #define STRATOLPC_H
 
+#include <time.h>
 #include "StratoCore.h"
 #include "LOPCLibrary_revF.h"  //updated library for Teensy 4.1
 //#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
@@ -21,6 +22,10 @@
 #define ZEPHYR_SERIAL   Serial8 // LPC - Teensy 4.1
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 2048
+
+/// Schedule the OPC for immediate start after entering flight mode,
+/// rather than waiting for the hour
+#define OPC_IMMEDIATE_START false
 
 // RS41 options
 /// Print RS41 samples to the console
@@ -105,6 +110,17 @@ private:
     /// @brief Send RS41 data to the console
     void printRS41data(RS41::RS41SensorData_t &rs41_data);
 
+    // Local storage functions
+    /// @brief Create a time based file name
+    String SDFileName(String prefix, String extension, time_t timetag);
+    /// @brief Formatted time respresentation
+    /// @param timetag The time of interest
+    /// @return Formatted as YYYYMMDDHHmmSS
+    String TimeString(time_t timetag);
+    /// @brief The number of LPC records in BinData
+    /// @param Records 
+    void writeLPCtoSD(int Records);
+    
     LOPCLibrary OPC;  //Creates an instance of the OPC
     RS41 _rs41; // The RS41 sensor
     

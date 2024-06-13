@@ -55,8 +55,11 @@ void StratoLPC::FlightMode()
             // On the first call for flight mode we set the nexr warmup period to occur on the next
             // hour.   After that the measurements occur every x minutes after the hour
             StartTime = Get_Next_Hour(); // Get the next whole hour
-            scheduler.AddAction(START_WARMUP, StartTime);  //start the measurement on the next whole hour
-            //scheduler.AddAction(START_WARMUP, 10); //For testing start in 10 seconds
+            if (!OPC_IMMEDIATE_START) {
+                scheduler.AddAction(START_WARMUP, StartTime);  //start the measurement on the next whole hour
+            } else {
+                scheduler.AddAction(START_WARMUP, 10); //For testing start in 10 seconds
+            }
             inst_substate = FL_IDLE; // automatically go to idle
             log_nominal("Entering FL_IDLE");
         }

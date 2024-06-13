@@ -507,6 +507,100 @@ void StratoLPC::PackageTelemetry(int Records)
     
     /* send the TM packet to the OBC */
     zephyrTX.TM();
+
+    // Save data to local storage
+    writeLPCtoSD(Records);
+}
+
+void StratoLPC::writeLPCtoSD(int Records) {
+
+    // We are building a facsimile of the TM message generated
+    // by XMLwriter.
+    //
+    // XMLwriter doesn't keep a copy of the built XML header,
+    // so we build that here.
+    //
+    // XMLwriter does make avaiable a buffer of the binary payload,
+    // so we will use that to fill in the binary data.
+    //
+    // There are 2 designed-in differences from the XMLwriter:
+    //  - The Msg number is fixed at 0.
+    //  - The CRC is not calculated. It is set to 0
+
+    String lpc_file_name = SDFileName("LPC_", ".ready_tm", now());
+    File lpc_file = SD.open(lpc_file_name.c_str(), FILE_WRITE);
+    if (!lpc_file) {
+        log_error((String("Unable to open ") + String(lpc_file_name)
+         + String(", LPC data will not be written")).c_str());
+        return;
+    }
+
+    log_nominal((String("Writing LPC to ") + lpc_file_name).c_str());
+    bool flag1 = true;
+    bool flag2 = true;
+    uint8_t* tm_buffer;
+
+    // Fetch the length of the binary segment, and a pointer to the buffer.
+    uint16_t num_elements = zephyrTX.getTmBuffer(&tm_buffer);
+
+    if ((TempPump1 > 60.0) || (TempPump1 < -30.0)) {flag1 = false;}
+    if ((TempPump2 > 60.0) || (TempPump2 < -30.0)) {flag1 = false;}
+    if ((TempLaser > 50.0) || (TempLaser < -30.0)) {flag1 = false;}
+    if ((VBat > 18.0) || (VBat < 14.0)) {flag2 = false;}
+
+    String xml = "<TM>\n";
+    xml += "\t<Msg>0</Msg>\n";
+    xml += "\t<Inst>LPC</Inst>\n";
+
+    xml += "\t<StateFlag1>";
+    if (flag1) {
+        xml += "WARN";
+    } else {
+        xml += "FINE";
+    }
+    xml += "</StateFlag1>\n";
+
+    xml += "\t<StateMess1>";
+    xml += String(TempPump1);
+    xml += String(',');
+    xml += String(TempPump2);
+    xml += String(',');
+    xml += String(TempLaser);
+    xml += "</StateMess1>\n";
+
+    xml += "\t<StateFlag2>";
+    if (flag2) {
+        xml += "FINE";
+    } else {
+        xml += "WARN";
+    }
+    xml += "</StateFlag2>\n";
+
+    xml += "\t<StateMess2>";
+    xml += String(VBat);
+    xml += String(',');
+    xml += String(VTeensy);
+    xml += "</StateMess2>\n";
+
+    xml += "\t<Length>";
+    xml += String(num_elements);
+    xml += "</Length>";
+    xml += "</TM>\n";
+
+    xml += "<CRC>00000</CRC>\n";
+    lpc_file.write(xml.c_str());
+
+    lpc_file.write("START");
+    
+    //Write the binary payload
+    lpc_file.write(tm_buffer, num_elements);
+    uint16_t crc_zero = 0;
+    lpc_file.write(&crc_zero, sizeof(uint16_t));
+    lpc_file.write("END");
+
+    // Finished
+    lpc_file.close();
+    log_nominal((lpc_file_name +String(" written")).c_str());
 }
 
 void StratoLPC::start_rs41() {
@@ -646,4 +740,16 @@ void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
         String(rs41_data.accelZ_mG);
 
     Serial.println(csv_str);
+}
+
+String StratoLPC::SDFileName(String prefix, String extension, time_t timetag) {
+    return prefix + TimeString(timetag) + extension;
+}
+
+String StratoLPC::TimeString(time_t timetag) {
+    char buf[50];
+    struct tm* tm_time;
+    tm_time = gmtime(&timetag);
+    strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", tm_time);
+    return String(buf);
 }
