@@ -64,6 +64,11 @@ sites, and so the library manager can't track revision updates?
 
 ## Arduino notes
 
+- The Arduino IDE serial monitor seems to have a limit to the number of lines
+  it will display. After a few hours of displaying the output from the instrument, 
+  it just stops receiving/displaying anything new.
+- If you use the MacOS `screen` command to capture data, don't resize
+  the terminal window. It will clear the display buffer.
 - Discovered that if a non-void function does not include a return 
   statement, it will crash the Arduino! It produces a compile
   warning, when really it should produce a compile error.
