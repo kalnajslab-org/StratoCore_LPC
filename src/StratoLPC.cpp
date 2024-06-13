@@ -674,6 +674,7 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
         zephyrTX.setStateFlagValue(1, FINE);
     } else {
         zephyrTX.setStateFlagValue(1, WARN);
+        Message += "RS41 error flag";
     } 
     zephyrTX.setStateDetails(1, Message);
 
@@ -688,6 +689,10 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     } else {
         zephyrTX.setStateFlagValue(2, WARN);
     }
+
+    // Set StateMess2 to "RS41" so that TM decoders can distiguish
+    // between LPC messages and RS41 messages.
+    Message = "RS41";
     zephyrTX.setStateDetails(2, Message);
     
     // Add the initial timestamp
