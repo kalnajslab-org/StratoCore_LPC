@@ -34,11 +34,11 @@ void StratoLPC::FlightMode()
 {
     if (inst_substate == FL_ENTRY) {
         _rs41.init();
-        Serial.println(_rs41.banner());
+        log_nominal((String("RS41: ")+_rs41.banner()).c_str());
         start_rs41();
         _rs41_sample_array_start_time = now();
     } else {
-        check_rs41_and_transmit();
+        check_rs41_transmit_and_store();
     }
     switch (inst_substate) {
     case FL_ENTRY:
@@ -234,6 +234,8 @@ void StratoLPC::FlightMode()
     case FL_EXIT:
         LPC_Shutdown();
         _rs41.pwr_off();
+        _rs41_filename = "";
+        _rs41_file_n_samples = 0;
         log_nominal("Exiting FL");
         break;
     default:

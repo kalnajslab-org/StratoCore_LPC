@@ -607,13 +607,15 @@ void StratoLPC::start_rs41() {
     scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
 }
 
-void StratoLPC::check_rs41_and_transmit() {
+void StratoLPC::check_rs41_transmit_and_store() {
     if (CheckAction(RS41_SAMPLE)) {
-        // Get the RS41 measurement
+
+        // *** Get the RS41 measurement
         RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
 
-        // Collect the RS41 sample
-        // Convert to the compressed telemetry format
+        // *** TM message handling
+        // Collect the RS41 sample for the TM message.
+        // Convert to the compressed telemetry format.
         _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
         _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
@@ -622,36 +624,30 @@ void StratoLPC::check_rs41_and_transmit() {
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
         _n_rs41_samples++;
 
-        if(RS41_DEBUG_PRINT) {
-            printRS41data(rs41_data);
-        }
-
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
             // Transmit the RS41 data
-            SendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
+            sendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
             log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
-            if (0) {
-                for (int i=0; i<RS41_N_SAMPLES_TO_REPORT; i++) {
-                    Serial.println(
-                        "valid:" + String(_rs41_samples[i].valid) + " " +
-                        "frame:" + String(_rs41_samples[i].frame) + " " +
-                        "tdry:" + String(_rs41_samples[i].tdry/100.0-100.0) + " " +
-                        "humidity:" + String(_rs41_samples[i].humidity/100.0) + " " +
-                        "pres:" + String(_rs41_samples[i].pres/50.0) + " " +
-                        "err:" + String(_rs41_samples[i].error)
-                    );
-                }
-            }
             _n_rs41_samples = 0;
             _rs41_sample_array_start_time = now();
         }
-        
-        // Schedule the next measurement
+
+        //*** Local storage handling
+        if (time_valid) {
+            rs41LocalStorage(rs41_data);
+        }
+
+        // *** Console print
+        if(RS41_DEBUG_PRINT) {
+            printRS4csv(rs41_data);
+        }
+
+        // *** Schedule the next measurement
         start_rs41();
     }
 }
 
-void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_sample_array, int n_samples)
+void StratoLPC::sendRS41Telemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41_sample_array, int n_samples)
 {
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
@@ -722,9 +718,48 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     
 }
 
-void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
+void StratoLPC::rs41LocalStorage(RS41::RS41SensorData_t& rs41_data) {
+
+    File rs41_file;
+
+    // On the first entry or after FL_EXIT, there will be no file name
+    if (!_rs41_filename.length() || (_rs41_file_n_samples >= RS41_N_SAMPLES_TO_REPORT)) {
+        _rs41_filename = SDFileName("RS41_", ".csv", now());
+        _rs41_file_n_samples = 0;
+        // Create the new file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            log_error((String("Unable to open ") + _rs41_filename + String(", RS41 dat will not be stored")).c_str());
+        } else {
+            log_nominal((String("RS41 csv will be logged to ") + _rs41_filename).c_str());
+            rs41_file.write(rs41CsvHeader().c_str());
+            rs41_file.write("\n");
+        }
+    }
+    
+    _rs41_file_n_samples++;
+
+    // If the file was not opened above
+    if (!rs41_file) {
+        // Open an existing file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            return;
+        }
+    }
+
+    String csv_str = getRS41csv(rs41_data);
+    rs41_file.write(csv_str.c_str());
+    rs41_file.write("\n");
+    rs41_file.close();
+}
+
+String StratoLPC::getRS41csv( RS41::RS41SensorData_t &rs41_data) {
     String comma(",");
     String csv_str = 
+        TimeString(now()) + comma +
         String(rs41_data.valid) + comma +
         String(rs41_data.frame_count) + comma +
         String(rs41_data.air_temp_degC) + comma +
@@ -744,7 +779,15 @@ void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
         String(rs41_data.accelY_mG) + comma +
         String(rs41_data.accelZ_mG);
 
-    Serial.println(csv_str);
+    return csv_str;
+}
+
+String StratoLPC::rs41CsvHeader() {
+    return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,mag_hdgXY_deg,mag_hdgXZ_deg,mag_hdgYZ_deg,accelX_mG,accelY_mG,accelZ_mG");
+}
+
+void StratoLPC::printRS4csv( RS41::RS41SensorData_t &rs41_data) {
+    Serial.println(getRS41csv(rs41_data));
 }
 
 String StratoLPC::SDFileName(String prefix, String extension, time_t timetag) {
