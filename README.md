@@ -1,9 +1,6 @@
-# LPC
-LASP Optical Particle Counter for Strateole 2
+# StrateoCore_LPC
 
-Original checkin was 22-Aug-2019. A bit of code devlopment continued
-after that, but was not submitted to the repo. The repo was
-updated with those modifications on 01-Jun-2024.
+LASP Optical Particle Counter for Strateole 2
 
 This is the main Teensy application for the LPC main board.
 It depends on several other source code repositories and 
@@ -13,6 +10,14 @@ For the time being, we have decided to put all of the application
 code, including the main board program, in the same `libraries/`
 directory where the Arduino IDE keeps its libraries. This will simplify
 the build environment.
+
+*Note: The original repository was kalnajslab/LPC. 
+The original checkin was 22-Aug-2019. A bit of code devlopment continued
+after that, but was not submitted to the repo. The repo was
+updated with those modifications on 01-Jun-2024. The repo was then
+forked and renamed to MisterMartin/StratoCore_LPC. Eventually
+it will be transferred back to kalnajslab/.*
+
 
 ## 1. Installation
 
