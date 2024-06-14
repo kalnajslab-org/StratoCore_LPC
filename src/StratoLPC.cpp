@@ -47,6 +47,7 @@ void StratoLPC::InstrumentLoop()
 bool StratoLPC::TCHandler(Telecommand_t telecommand)
 {
     String dbg_msg = "";
+    String comma(",");
 
     switch (telecommand) {
     case SETLASERTEMP:
@@ -84,6 +85,15 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
     case SETLGBINS:
         // todo: reader gets 24 values, class expects 16
         log_error("LG bins unimplemented");
+        break;
+    case SETPHA:
+        Set_phaBaseline = lpcParam.phaBaseline;
+        Set_phaHiGainOffset = lpcParam.phaHiGainOffset;
+        Set_phaLoGainOffset = lpcParam.phaLoGainOffset;
+        ZephyrLogFine((String("TC: Changing PHA ")
+            +String(Set_phaBaseline)
+            +comma+String(Set_phaHiGainOffset)
+            +comma+String(Set_phaLoGainOffset)).c_str());
         break;
     default:
         ZephyrLogWarn("Unknown TC received");

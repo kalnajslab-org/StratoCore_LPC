@@ -161,6 +161,9 @@ private:
     int Set_warmUpTime = 50; //Warm up time in seconds
     int Set_LaserTemp = 10;  //target Laser Temperature
     int Set_FlushingTime = 10; //Flushing Time in seconds
+    uint16_t Set_phaBaseline;  // PHA baseline
+    uint16_t Set_phaHiGainOffset; // PHA high gain offset
+    uint16_t Set_phaLoGainOffset; // PHA low gain offset
     /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins
