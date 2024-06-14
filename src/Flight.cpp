@@ -35,10 +35,10 @@ void StratoLPC::FlightMode()
     if (inst_substate == FL_ENTRY) {
         _rs41.init();
         log_nominal((String("RS41: ")+_rs41.banner()).c_str());
-        start_rs41();
+        rs41Start();
         _rs41_sample_array_start_time = now();
     } else {
-        check_rs41_transmit_and_store();
+        rs41Action();
     }
     switch (inst_substate) {
     case FL_ENTRY:

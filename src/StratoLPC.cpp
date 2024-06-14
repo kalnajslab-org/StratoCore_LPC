@@ -95,6 +95,10 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
             +comma+String(Set_phaHiGainOffset)
             +comma+String(Set_phaLoGainOffset)).c_str());
         break;
+    case REGENRS41:
+        Set_rs41regen = true;
+        ZephyrLogFine("TC: RS41 regen requested");
+        break;
     default:
         ZephyrLogWarn("Unknown TC received");
         break;
@@ -613,12 +617,17 @@ void StratoLPC::writeLPCtoSD(int Records) {
     log_nominal((lpc_file_name +String(" written")).c_str());
 }
 
-void StratoLPC::start_rs41() {
+void StratoLPC::rs41Start() {
     scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
 }
 
-void StratoLPC::check_rs41_transmit_and_store() {
+void StratoLPC::rs41Action() {
     if (CheckAction(RS41_SAMPLE)) {
+        if (Set_rs41regen) {
+            log_nominal("RS41 regeneration initiated");
+            log_nominal(_rs41.recondition().c_str());
+            Set_rs41regen = false;
+        }
 
         // *** Get the RS41 measurement
         RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
@@ -636,7 +645,7 @@ void StratoLPC::check_rs41_transmit_and_store() {
 
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
             // Transmit the RS41 data
-            sendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
+            rs41SendTelemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
             log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
             _n_rs41_samples = 0;
             _rs41_sample_array_start_time = now();
@@ -649,15 +658,15 @@ void StratoLPC::check_rs41_transmit_and_store() {
 
         // *** Console print
         if(RS41_DEBUG_PRINT) {
-            printRS4csv(rs41_data);
+            rs41PrintCsv(rs41_data);
         }
 
         // *** Schedule the next measurement
-        start_rs41();
+        rs41Start();
     }
 }
 
-void StratoLPC::sendRS41Telemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41_sample_array, int n_samples)
+void StratoLPC::rs41SendTelemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41_sample_array, int n_samples)
 {
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
@@ -760,13 +769,13 @@ void StratoLPC::rs41LocalStorage(RS41::RS41SensorData_t& rs41_data) {
         }
     }
 
-    String csv_str = getRS41csv(rs41_data);
+    String csv_str = rs41CsvData(rs41_data);
     rs41_file.write(csv_str.c_str());
     rs41_file.write("\n");
     rs41_file.close();
 }
 
-String StratoLPC::getRS41csv( RS41::RS41SensorData_t &rs41_data) {
+String StratoLPC::rs41CsvData( RS41::RS41SensorData_t &rs41_data) {
     String comma(",");
     String csv_str = 
         TimeString(now()) + comma +
@@ -796,8 +805,8 @@ String StratoLPC::rs41CsvHeader() {
     return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,mag_hdgXY_deg,mag_hdgXZ_deg,mag_hdgYZ_deg,accelX_mG,accelY_mG,accelZ_mG");
 }
 
-void StratoLPC::printRS4csv( RS41::RS41SensorData_t &rs41_data) {
-    Serial.println(getRS41csv(rs41_data));
+void StratoLPC::rs41PrintCsv( RS41::RS41SensorData_t &rs41_data) {
+    Serial.println(rs41CsvData(rs41_data));
 }
 
 String StratoLPC::SDFileName(String prefix, String extension, time_t timetag) {

@@ -101,22 +101,22 @@ private:
     
     // RS41 Functions
     /// @brief (Re)start the RS41 measurement action.
-    void start_rs41();
+    void rs41Start();
     /// @brief See if the RS41 action has been triggered.
     /// If so, collect a sample and reset the action.
     /// If RS41_N_SAMPLES_TO_REPORT have been collected,
     /// transmit them as a TM data packet.
     /// If time is valid, save the sample to local storage.
-    void check_rs41_transmit_and_store();
+    void rs41Action();
     /// @brief Send an RS41 telemetry package
-    void sendRS41Telemetry(uint32_t sample_start_time, rs41TmSample_t* rs41_sample_array, int n_samples);
+    void rs41SendTelemetry(uint32_t sample_start_time, rs41TmSample_t* rs41_sample_array, int n_samples);
     /// @brief A header for RS41 CSV data
     /// @return The header
     String rs41CsvHeader();
     /// @brief Get a CSV version of RS41 data
-    String getRS41csv(RS41::RS41SensorData_t &rs41_data);
+    String rs41CsvData(RS41::RS41SensorData_t &rs41_data);
     /// @brief Send RS41 data to the console
-    void printRS4csv(RS41::RS41SensorData_t &rs41_data);
+    void rs41PrintCsv(RS41::RS41SensorData_t &rs41_data);
 
     // Local storage functions
     /// @brief Create a time based file name
@@ -164,6 +164,7 @@ private:
     uint16_t Set_phaBaseline;  // PHA baseline
     uint16_t Set_phaHiGainOffset; // PHA high gain offset
     uint16_t Set_phaLoGainOffset; // PHA low gain offset
+    bool Set_rs41regen = false; // Initiate an RS41 regeneration
     /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins
