@@ -48,6 +48,7 @@ void StratoLPC::InstrumentLoop()
 bool StratoLPC::TCHandler(Telecommand_t telecommand)
 {
     String dbg_msg = "";
+    String comma(",");
 
     switch (telecommand) {
     case SETLASERTEMP:
@@ -85,6 +86,19 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
     case SETLGBINS:
         // todo: reader gets 24 values, class expects 16
         log_error("LG bins unimplemented");
+        break;
+    case SETPHA:
+        Set_phaBaseline = lpcParam.phaBaseline;
+        Set_phaHiGainOffset = lpcParam.phaHiGainOffset;
+        Set_phaLoGainOffset = lpcParam.phaLoGainOffset;
+        ZephyrLogFine((String("TC: Changing PHA ")
+            +String(Set_phaBaseline)
+            +comma+String(Set_phaHiGainOffset)
+            +comma+String(Set_phaLoGainOffset)).c_str());
+        break;
+    case REGENRS41:
+        Set_rs41regen = true;
+        ZephyrLogFine("TC: RS41 regen requested");
         break;
     default:
         ZephyrLogWarn("Unknown TC received");
@@ -508,19 +522,120 @@ void StratoLPC::PackageTelemetry(int Records)
     
     /* send the TM packet to the OBC */
     zephyrTX.TM();
+
+    // Save data to local storage
+    writeLPCtoSD(Records);
 }
 
-void StratoLPC::start_rs41() {
+void StratoLPC::writeLPCtoSD(int Records) {
+
+    // We are building a facsimile of the TM message generated
+    // by XMLwriter.
+    //
+    // XMLwriter doesn't keep a copy of the built XML header,
+    // so we build that here.
+    //
+    // XMLwriter does make avaiable a buffer of the binary payload,
+    // so we will use that to fill in the binary data.
+    //
+    // There are 2 designed-in differences from the XMLwriter:
+    //  - The Msg number is fixed at 0.
+    //  - The CRC is not calculated. It is set to 0
+
+    String lpc_file_name = SDFileName("LPC_", ".ready_tm", now());
+    File lpc_file = SD.open(lpc_file_name.c_str(), FILE_WRITE);
+    if (!lpc_file) {
+        log_error((String("Unable to open ") + String(lpc_file_name)
+         + String(", LPC data will not be written")).c_str());
+        return;
+    }
+
+    log_nominal((String("Writing LPC to ") + lpc_file_name).c_str());
+    bool flag1 = true;
+    bool flag2 = true;
+    uint8_t* tm_buffer;
+
+    // Fetch the length of the binary segment, and a pointer to the buffer.
+    uint16_t num_elements = zephyrTX.getTmBuffer(&tm_buffer);
+
+    if ((TempPump1 > 60.0) || (TempPump1 < -30.0)) {flag1 = false;}
+    if ((TempPump2 > 60.0) || (TempPump2 < -30.0)) {flag1 = false;}
+    if ((TempLaser > 50.0) || (TempLaser < -30.0)) {flag1 = false;}
+    if ((VBat > 18.0) || (VBat < 14.0)) {flag2 = false;}
+
+    String xml = "<TM>\n";
+    xml += "\t<Msg>0</Msg>\n";
+    xml += "\t<Inst>LPC</Inst>\n";
+
+    xml += "\t<StateFlag1>";
+    if (flag1) {
+        xml += "WARN";
+    } else {
+        xml += "FINE";
+    }
+    xml += "</StateFlag1>\n";
+
+    xml += "\t<StateMess1>";
+    xml += String(TempPump1);
+    xml += String(',');
+    xml += String(TempPump2);
+    xml += String(',');
+    xml += String(TempLaser);
+    xml += "</StateMess1>\n";
+
+    xml += "\t<StateFlag2>";
+    if (flag2) {
+        xml += "FINE";
+    } else {
+        xml += "WARN";
+    }
+    xml += "</StateFlag2>\n";
+
+    xml += "\t<StateMess2>";
+    xml += String(VBat);
+    xml += String(',');
+    xml += String(VTeensy);
+    xml += "</StateMess2>\n";
+
+    xml += "\t<Length>";
+    xml += String(num_elements);
+    xml += "</Length>";
+    xml += "</TM>\n";
+
+    xml += "<CRC>00000</CRC>\n";
+    lpc_file.write(xml.c_str());
+
+    lpc_file.write("START");
+    
+    //Write the binary payload
+    lpc_file.write(tm_buffer, num_elements);
+    uint16_t crc_zero = 0;
+    lpc_file.write(&crc_zero, sizeof(uint16_t));
+    lpc_file.write("END");
+
+    // Finished
+    lpc_file.close();
+    log_nominal((lpc_file_name +String(" written")).c_str());
+}
+
+void StratoLPC::rs41Start() {
     scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
 }
 
-void StratoLPC::check_rs41_and_transmit() {
+void StratoLPC::rs41Action() {
     if (CheckAction(RS41_SAMPLE)) {
-        // Get the RS41 measurement
+        if (Set_rs41regen) {
+            log_nominal("RS41 regeneration initiated");
+            log_nominal(_rs41.recondition().c_str());
+            Set_rs41regen = false;
+        }
+
+        // *** Get the RS41 measurement
         RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
 
-        // Collect the RS41 sample
-        // Convert to the compressed telemetry format
+        // *** TM message handling
+        // Collect the RS41 sample for the TM message.
+        // Convert to the compressed telemetry format.
         _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
         _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
@@ -529,36 +644,30 @@ void StratoLPC::check_rs41_and_transmit() {
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
         _n_rs41_samples++;
 
-        if(RS41_DEBUG_PRINT) {
-            printRS41data(rs41_data);
-        }
-
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
             // Transmit the RS41 data
-            SendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
+            rs41SendTelemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
             log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
-            if (0) {
-                for (int i=0; i<RS41_N_SAMPLES_TO_REPORT; i++) {
-                    Serial.println(
-                        "valid:" + String(_rs41_samples[i].valid) + " " +
-                        "frame:" + String(_rs41_samples[i].frame) + " " +
-                        "tdry:" + String(_rs41_samples[i].tdry/100.0-100.0) + " " +
-                        "humidity:" + String(_rs41_samples[i].humidity/100.0) + " " +
-                        "pres:" + String(_rs41_samples[i].pres/50.0) + " " +
-                        "err:" + String(_rs41_samples[i].error)
-                    );
-                }
-            }
             _n_rs41_samples = 0;
             _rs41_sample_array_start_time = now();
         }
-        
-        // Schedule the next measurement
-        start_rs41();
+
+        //*** Local storage handling
+        if (time_valid) {
+            rs41LocalStorage(rs41_data);
+        }
+
+        // *** Console print
+        if(RS41_DEBUG_PRINT) {
+            rs41PrintCsv(rs41_data);
+        }
+
+        // *** Schedule the next measurement
+        rs41Start();
     }
 }
 
-void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_sample_array, int n_samples)
+void StratoLPC::rs41SendTelemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41_sample_array, int n_samples)
 {
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
@@ -581,6 +690,7 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
         zephyrTX.setStateFlagValue(1, FINE);
     } else {
         zephyrTX.setStateFlagValue(1, WARN);
+        Message += "RS41 error flag";
     } 
     zephyrTX.setStateDetails(1, Message);
 
@@ -595,6 +705,10 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     } else {
         zephyrTX.setStateFlagValue(2, WARN);
     }
+
+    // Set StateMess2 to "RS41" so that TM decoders can distiguish
+    // between LPC messages and RS41 messages.
+    Message = "RS41";
     zephyrTX.setStateDetails(2, Message);
     
     // Add the initial timestamp
@@ -624,9 +738,48 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     
 }
 
-void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
+void StratoLPC::rs41LocalStorage(RS41::RS41SensorData_t& rs41_data) {
+
+    File rs41_file;
+
+    // On the first entry or after FL_EXIT, there will be no file name
+    if (!_rs41_filename.length() || (_rs41_file_n_samples >= RS41_N_SAMPLES_TO_REPORT)) {
+        _rs41_filename = SDFileName("RS41_", ".csv", now());
+        _rs41_file_n_samples = 0;
+        // Create the new file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            log_error((String("Unable to open ") + _rs41_filename + String(", RS41 dat will not be stored")).c_str());
+        } else {
+            log_nominal((String("RS41 csv will be logged to ") + _rs41_filename).c_str());
+            rs41_file.write(rs41CsvHeader().c_str());
+            rs41_file.write("\n");
+        }
+    }
+    
+    _rs41_file_n_samples++;
+
+    // If the file was not opened above
+    if (!rs41_file) {
+        // Open an existing file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            return;
+        }
+    }
+
+    String csv_str = rs41CsvData(rs41_data);
+    rs41_file.write(csv_str.c_str());
+    rs41_file.write("\n");
+    rs41_file.close();
+}
+
+String StratoLPC::rs41CsvData( RS41::RS41SensorData_t &rs41_data) {
     String comma(",");
     String csv_str = 
+        TimeString(now()) + comma +
         String(rs41_data.valid) + comma +
         String(rs41_data.frame_count) + comma +
         String(rs41_data.air_temp_degC) + comma +
@@ -646,5 +799,25 @@ void StratoLPC::printRS41data( RS41::RS41SensorData_t &rs41_data) {
         String(rs41_data.accelY_mG) + comma +
         String(rs41_data.accelZ_mG);
 
-    Serial.println(csv_str);
+    return csv_str;
+}
+
+String StratoLPC::rs41CsvHeader() {
+    return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,mag_hdgXY_deg,mag_hdgXZ_deg,mag_hdgYZ_deg,accelX_mG,accelY_mG,accelZ_mG");
+}
+
+void StratoLPC::rs41PrintCsv( RS41::RS41SensorData_t &rs41_data) {
+    Serial.println(rs41CsvData(rs41_data));
+}
+
+String StratoLPC::SDFileName(String prefix, String extension, time_t timetag) {
+    return prefix + TimeString(timetag) + extension;
+}
+
+String StratoLPC::TimeString(time_t timetag) {
+    char buf[50];
+    struct tm* tm_time;
+    tm_time = gmtime(&timetag);
+    strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", tm_time);
+    return String(buf);
 }

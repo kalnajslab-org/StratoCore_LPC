@@ -12,6 +12,7 @@
 #ifndef STRATOLPC_H
 #define STRATOLPC_H
 
+#include <time.h>
 #include "StratoCore.h"
 #include "LOPCLibrary_revF.h"  //updated library for Teensy 4.1
 //#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
@@ -22,12 +23,17 @@
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 2048
 
+/// Schedule the OPC for immediate start after entering flight mode,
+/// rather than waiting for the hour.
+#define OPC_IMMEDIATE_START false
+
 // RS41 options
-/// Print RS41 samples to the console
+/// Print RS41 samples to the console.
 #define RS41_DEBUG_PRINT false
-/// How often to sample the RS41 during flight mode
+/// How often to sample the RS41 during flight mode.
 #define RS41_SAMPLE_PERIOD_SECS 1
-/// The telemetry reporting period of RS41 samples
+/// The telemetry reporting period of RS41 samples.
+/// A new local storage file is also made at the same interval.
 #define RS41_N_SAMPLES_TO_REPORT 600
 
 // number of loops before a flag becomes stale and is reset
@@ -52,7 +58,8 @@ enum ScheduleAction_t : uint8_t {
     NUM_ACTIONS
 };
 
-struct RS41Sample_t {
+/// @brief The RS41 compressed sample for use in the RS41 TM message
+struct rs41TmSample_t {
     uint8_t valid;
     uint32_t frame;
     uint16_t tdry;
@@ -94,17 +101,40 @@ private:
     
     // RS41 Functions
     /// @brief (Re)start the RS41 measurement action.
-    void start_rs41();
+    void rs41Start();
     /// @brief See if the RS41 action has been triggered.
     /// If so, collect a sample and reset the action.
     /// If RS41_N_SAMPLES_TO_REPORT have been collected,
-    /// transmit them as a data packet.
-    void check_rs41_and_transmit();
+    /// transmit them as a TM data packet.
+    /// If time is valid, save the sample to local storage.
+    void rs41Action();
     /// @brief Send an RS41 telemetry package
-    void SendRS41Telemetry(uint32_t sample_start_time, RS41Sample_t* rs41_sample_array, int n_samples);
+    void rs41SendTelemetry(uint32_t sample_start_time, rs41TmSample_t* rs41_sample_array, int n_samples);
+    /// @brief A header for RS41 CSV data
+    /// @return The header
+    String rs41CsvHeader();
+    /// @brief Get a CSV version of RS41 data
+    String rs41CsvData(RS41::RS41SensorData_t &rs41_data);
     /// @brief Send RS41 data to the console
-    void printRS41data(RS41::RS41SensorData_t &rs41_data);
+    void rs41PrintCsv(RS41::RS41SensorData_t &rs41_data);
 
+    // Local storage functions
+    /// @brief Create a time based file name
+    String SDFileName(String prefix, String extension, time_t timetag);
+    /// @brief Formatted time respresentation
+    /// @param timetag The time of interest
+    /// @return Formatted as YYYYMMDDHHmmSS
+    String TimeString(time_t timetag);
+    /// @brief The number of LPC records in BinData
+    /// @param Records 
+    void writeLPCtoSD(int Records);
+    /// @brief
+    /// RS41 local storage processing
+    /// Create a new RS41 local file every RS41_N_SAMPLES_TO_REPORT.
+    /// Append the samples in CSV format.
+    /// @param rs41_data One sample of RS41 data
+    void rs41LocalStorage(RS41::RS41SensorData_t& rs41_data);
+    
     LOPCLibrary OPC;  //Creates an instance of the OPC
     RS41 _rs41; // The RS41 sensor
     
@@ -131,6 +161,10 @@ private:
     int Set_warmUpTime = 10; //Warm up time in seconds
     int Set_LaserTemp = -30;  //target Laser Temperature
     int Set_FlushingTime = 10; //Flushing Time in seconds
+    uint16_t Set_phaBaseline;  // PHA baseline
+    uint16_t Set_phaHiGainOffset; // PHA high gain offset
+    uint16_t Set_phaLoGainOffset; // PHA low gain offset
+    bool Set_rs41regen = false; // Initiate an RS41 regeneration
     /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins
@@ -200,10 +234,20 @@ private:
     int HGBins[16]; //int array for downsampled data
     int LGBins[16]; // int array for downsampled data
     
-    // RS41 member variables
+    // RS41 variables
+    /// The number of RS41 samples which have been collected for
+    /// sending as a TM
     int _n_rs41_samples = 0;
-    RS41Sample_t _rs41_samples[RS41_N_SAMPLES_TO_REPORT];
+    /// Array to hold RS41 samples for the TM
+    rs41TmSample_t _rs41_samples[RS41_N_SAMPLES_TO_REPORT];
+    /// The time which the first RS41 sample was put into the array
     uint32_t _rs41_sample_array_start_time;
+    /// The current RS41 local file. We will be opening, appending, closing
+    /// to this file. When not in flight mode, the string is set to empty.
+    String _rs41_filename;
+    /// The number of RS41 files samples which have been written to
+    /// the current _rs41_file. It is used for cycling the RS41 file.
+    int _rs41_file_n_samples = 0;
 
     // Actions
     ActionFlag_t action_flags[NUM_ACTIONS] = {{0}}; // initialize all flags to false

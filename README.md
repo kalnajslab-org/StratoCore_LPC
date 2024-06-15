@@ -1,12 +1,9 @@
-# LPC
+# StrateoCore_LPC
+
 LASP Optical Particle Counter for Strateole 2
 
-Original checkin was 22-Aug-2019. A bit of code devlopment continued
-after that, but was not submitted to the repo. The repo was
-updated with those modifications on 01-Jun-2024.
-
 This is the main Teensy application for the LPC main board.
-It depends on several other source coderepositories and 
+It depends on several other source code repositories and 
 Arduino libraries.
 
 For the time being, we have decided to put all of the application
@@ -14,19 +11,29 @@ code, including the main board program, in the same `libraries/`
 directory where the Arduino IDE keeps its libraries. This will simplify
 the build environment.
 
-## Installation
+*Note: The original repository was kalnajslab/LPC. 
+The original checkin was 22-Aug-2019. A bit of code devlopment continued
+after that, but was not submitted to the repo. The repo was
+updated with those modifications on 01-Jun-2024. The repo was then
+forked and renamed to MisterMartin/StratoCore_LPC. Eventually
+it will be transferred back to kalnajslab/.*
+
+
+## 1. Installation
 
 There are 3 steps for configuring the development environment:
   1. Install Teensyduino (v1.59.0 or later).
   1. Clone the relevant LPC Arduino code repositories.
   1. Install Arduino libraries.
 
-### Teensyduino
+### 2. Teensyduino
 
 See the download and installation instructions for 
 <a href="https://www.pjrc.com/teensy/td_download.html" target="_blank">Teensyduino</a>.
 
-### LPC Ardduino code repositories
+### 3. LPC Arduino code repositories
+
+Cloned from GitHub:
 
 ```sh
 cd Documents/arduino/libraries # Or wherever your Arduino libraries are
@@ -49,7 +56,7 @@ saved in `StratoCore_LPC/zips`.
 
 - Install our currated libraries, by unzipping the .zip files
   located in `StratoCore_LPC/zips/` into `Documents/arduino/libraries/`.
-  This can be done manually, or using the Arduino IDE library manager
+  This can be done manually, or by using the Arduino IDE library manager
   to install a .zip file.
 
 Note that the zipped libraries won't appear in the Arduino IDE library
@@ -60,3 +67,16 @@ sites, and so the library manager can't track revision updates?
 
   Mash the compile button in the Arduino IDE.
 
+## Arduino notes
+
+- The Arduino IDE serial monitor seems to have a limit to the number of lines
+  it will display. After a few hours of displaying the output from the instrument, 
+  it just stops receiving/displaying anything new.
+- If you use the MacOS `screen` command to capture data, don't resize
+  the terminal window. It will clear the display buffer.
+- Discovered that if a non-void function does not include a return 
+  statement, it will crash the Arduino! It produces a compile
+  warning, when really it should produce a compile error.
+  This [thread](https://github.com/espressif/arduino-esp32/issues/5867),
+  and [this one also](https://stackoverflow.com/questions/57163022/c-crash-on-a-non-void-function-doesnt-have-return-statement)
+  report the same issue.
