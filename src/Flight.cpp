@@ -103,6 +103,8 @@ void StratoLPC::FlightMode()
             OPCSERIAL.begin(500000);  //PHA serial speed = 0.5Mb
             delay(500);
             OPCSERIAL.setTimeout(2000); //Set the serial timout to 2s
+            // See if the PHA needs to be configured
+            phaConfig();
             scheduler.AddAction(START_MEASUREMENT, Set_FlushingTime);
             inst_substate = FL_FLUSH;
             log_nominal("Entering FL_FLUSH");

@@ -99,6 +99,12 @@ private:
     void fillBins(int,int);
     void PackageTelemetry(int);
     
+    // PHA functions
+    /// @brief Configure the PHA if needed
+    /// If the Set_triggerPHAconfig flag is set, 
+    /// configure the PHA, and clear Set_triggerPHAconfig.
+    void phaConfig();
+
     // RS41 Functions
     /// @brief (Re)start the RS41 measurement action.
     void rs41Start();
@@ -155,16 +161,17 @@ private:
 
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
-    int Set_numberSamples = 90; //number of samples to collect for each measurement
-    int Set_samplesToAverage = 1; //number of 2 second PHA packets to avergae per sample
-    int Set_cycleTime = 10;  //Time between measurements in minutes
-    int Set_warmUpTime = 10; //Warm up time in seconds
-    int Set_LaserTemp = -30;  //target Laser Temperature
-    int Set_FlushingTime = 10; //Flushing Time in seconds
-    uint16_t Set_phaBaseline;  // PHA baseline
-    uint16_t Set_phaHiGainOffset; // PHA high gain offset
-    uint16_t Set_phaLoGainOffset; // PHA low gain offset
-    bool Set_rs41regen = false; // Initiate an RS41 regeneration
+    int Set_numberSamples = 90;        // Number of samples to collect for each measurement
+    int Set_samplesToAverage = 1;      // Number of 2 second PHA packets to avergae per sample
+    int Set_cycleTime = 10;            // Time between measurements in minutes
+    int Set_warmUpTime = 10;           // Warm up time in seconds
+    int Set_LaserTemp = -30;           // Target Laser Temperature
+    int Set_FlushingTime = 10;         // Flushing Time in seconds
+    uint16_t Set_phaHiGainThreshold;   // PHA high threshold
+    uint16_t Set_phaHiGainOffset;      // PHA high gain baseline offset
+    uint16_t Set_phaLoGainOffset;      // PHA low gain baseline offset
+    bool Set_triggerPHAconfig = false; // Trigger the PHA configuration, which happens during FL_WARMUP
+    bool Set_rs41regen = false;        // Initiate an RS41 regeneration
     /* These should be set for each instrument */
     int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins

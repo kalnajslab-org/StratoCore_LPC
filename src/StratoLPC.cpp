@@ -48,7 +48,6 @@ void StratoLPC::InstrumentLoop()
 bool StratoLPC::TCHandler(Telecommand_t telecommand)
 {
     String dbg_msg = "";
-    String comma(",");
 
     switch (telecommand) {
     case SETLASERTEMP:
@@ -88,13 +87,14 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
         log_error("LG bins unimplemented");
         break;
     case SETPHA:
-        Set_phaBaseline = lpcParam.phaBaseline;
+        Set_phaHiGainThreshold = lpcParam.phaHiGainThreshold;
         Set_phaHiGainOffset = lpcParam.phaHiGainOffset;
         Set_phaLoGainOffset = lpcParam.phaLoGainOffset;
-        ZephyrLogFine((String("TC: Changing PHA ")
-            +String(Set_phaBaseline)
-            +comma+String(Set_phaHiGainOffset)
-            +comma+String(Set_phaLoGainOffset)).c_str());
+        Set_triggerPHAconfig = true;
+        ZephyrLogFine((String("TC: Change PHA requested")
+            + String(" HiGainThreshold:") + String(Set_phaHiGainThreshold)
+            + String(", HiGainOffset:") + String(Set_phaHiGainOffset)
+            + String(", LoGainOffset:") + String(Set_phaLoGainOffset)).c_str());
         break;
     case REGENRS41:
         Set_rs41regen = true;
@@ -525,6 +525,50 @@ void StratoLPC::PackageTelemetry(int Records)
 
     // Save data to local storage
     writeLPCtoSD(Records);
+}
+
+void StratoLPC::phaConfig() {
+    if (!Set_triggerPHAconfig) {
+        return;
+    }
+
+    // Clear the trigger
+    Set_triggerPHAconfig = false;
+
+    // Verify parameters
+    if ((Set_phaHiGainThreshold >= 1024) ||
+        (Set_phaHiGainOffset >= 4096) ||
+        (Set_phaLoGainOffset >= 4096)) {
+            log_error((
+                String("PHA config range error: ") +
+                String() + String(", ") +
+                String() + String(", ") +
+                String() + String(" ") +
+                String("PHA will not be configured")).c_str());
+            return;
+        }
+
+    // Send the commands to the PHA
+    String cmd;
+
+    delay(100);
+    cmd = String("#thresh,") + String(Set_phaHiGainThreshold) + String("\r");
+    Serial1.print(cmd.c_str());
+    log_nominal((String("PHA Hi Gain Threshold commanded: ") + cmd).c_str());
+
+    delay(100);
+    cmd = String("#hgoff,") + String(Set_phaHiGainOffset) + String("\r");
+    Serial1.print(cmd.c_str());
+    log_nominal((String("PHA Hi Gain Baseline Offset commanded: ") + cmd).c_str());
+
+    delay(100);
+    cmd = String("#lgoff,") + String(Set_phaLoGainOffset) + String("\r");
+    Serial1.print(cmd.c_str());
+    log_nominal((String("PHA Lo Gain Baseline Offset commanded: ") + cmd).c_str());
+    delay(100);
+
+    // Have the PHA save the new values
+    Serial1.print("#save\r");
 }
 
 void StratoLPC::writeLPCtoSD(int Records) {
