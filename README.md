@@ -6,7 +6,7 @@ This is the main Teensy application for the LPC main board.
 It depends on several other source code repositories and 
 Arduino libraries.
 
-For the time being, we have decided to put all of the application
+In order to play well with Arduino IDE, we have put all of the application
 code, including the main board program, in the same `libraries/`
 directory where the Arduino IDE keeps its libraries. This will simplify
 the build environment.
