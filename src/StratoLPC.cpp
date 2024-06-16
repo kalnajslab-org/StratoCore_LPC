@@ -553,22 +553,22 @@ void StratoLPC::phaConfig() {
 
     delay(100);
     cmd = String("#thresh,") + String(Set_phaHiGainThreshold) + String("\r");
-    Serial1.print(cmd.c_str());
+    OPCSERIAL.print(cmd.c_str());
     log_nominal((String("PHA Hi Gain Threshold commanded: ") + cmd).c_str());
 
     delay(100);
     cmd = String("#hgoff,") + String(Set_phaHiGainOffset) + String("\r");
-    Serial1.print(cmd.c_str());
+    OPCSERIAL.print(cmd.c_str());
     log_nominal((String("PHA Hi Gain Baseline Offset commanded: ") + cmd).c_str());
 
     delay(100);
     cmd = String("#lgoff,") + String(Set_phaLoGainOffset) + String("\r");
-    Serial1.print(cmd.c_str());
+    OPCSERIAL.print(cmd.c_str());
     log_nominal((String("PHA Lo Gain Baseline Offset commanded: ") + cmd).c_str());
     delay(100);
 
     // Have the PHA save the new values
-    Serial1.print("#save\r");
+    OPCSERIAL.print("#save\r");
 }
 
 void StratoLPC::writeLPCtoSD(int Records) {
