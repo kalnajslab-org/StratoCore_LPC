@@ -481,11 +481,11 @@ void StratoLPC::PackageTelemetry(int Records)
         zephyrTX.setStateFlagValue(2, WARN);
     }
     
-    Message.concat(zephyr_gps.latitude);
+    Message.concat(zephyrRX.zephyr_gps.latitude);
     Message.concat(',');
-    Message.concat(zephyr_gps.longitude);
+    Message.concat(zephyrRX.zephyr_gps.longitude);
     Message.concat(',');
-    Message.concat(zephyr_gps.altitude);
+    Message.concat(zephyrRX.zephyr_gps.altitude);
     zephyrTX.setStateDetails(2, Message);
     Message = "";
 
