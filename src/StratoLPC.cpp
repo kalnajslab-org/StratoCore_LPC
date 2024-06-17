@@ -263,7 +263,7 @@ void StratoLPC::ReadHK(int record)
     HKData[13][record] = (uint16_t) (TempLaser + 273.15) * 100.0; //Kelvin * 100
     TempPCB = OPC.MeasureLTC2983(12);
     HKData[14][record] = (uint16_t) (TempPCB + 273.15) * 100.0; //Kelvin * 100
-    TempInlet = OPC.MeasureLTC2983(14);
+    TempInlet = OPC.MeasureLTC2983(10);
     HKData[14][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
     
 }
@@ -481,9 +481,11 @@ void StratoLPC::PackageTelemetry(int Records)
         zephyrTX.setStateFlagValue(2, WARN);
     }
     
-    Message.concat(VBat);
+    Message.concat(zephyr_gps.latitude);
     Message.concat(',');
-    Message.concat(VTeensy);
+    Message.concat(zephyr_gps.longitude);
+    Message.concat(',');
+    Message.concat(zephyr_gps.altitude);
     zephyrTX.setStateDetails(2, Message);
     Message = "";
 
