@@ -163,7 +163,7 @@ void StratoLPC::LPC_Shutdown()
     pinMode(1,INPUT);
     digitalWrite(1, LOW);
     
-    digitalWrite(MFS_POWER, LOW); //Turn off AFS
+    //digitalWrite(MFS_POWER, LOW); //Turn off AFS
     digitalWrite(PHA_POWER, LOW); //Turn off Optical Head
     digitalWrite(HEATER1, LOW); //Turn off Laser Heater
     digitalWrite(HEATER2, LOW); //Turn of unused heater
@@ -237,18 +237,19 @@ void StratoLPC::ReadHK(int record)
     HKData[1][record] = (uint16_t) IPump1; //Current in mA
     HKData[2][record] = (uint16_t) IPump2; //Current in mA
     IHeater1 = analogRead(HEATER1_I)/1.058;
-    HKData[3][record] = (uint16_t) IHeater1;  //Current in mA 
-    HKData[4][record] = (uint16_t) IDetector;  //Current in mA
+    HKData[3][record] = (uint16_t) IDetector;  //Current in mA
     VDetector = analogRead(PHA_12V_V)*3.3/4095.0*5.993;
-    HKData[5][record] = (uint16_t) (VDetector * 1000.0);  //Volts in mV
+    HKData[4][record] = (uint16_t) (VDetector * 1000.0);  //Volts in mV
     VPHA = analogRead(PHA_3V3_V)*3.3/4095.0*2.0;
-    HKData[6][record] = (uint16_t) (VPHA * 1000.0); //Volts in mV
+    HKData[5][record] = (uint16_t) (VPHA * 1000.0); //Volts in mV
     VTeensy = analogRead(TEENSY_3V3)*3.3/4095.0*2.0;
-    HKData[7][record] = (uint16_t) (VTeensy * 1000.0); //volte in mV
+    HKData[6][record] = (uint16_t) (VTeensy * 1000.0); //volte in mV
     VBat = analogRead(BATTERY_V)*3.3/4095.0 *6.772;
-    HKData[8][record] = (uint16_t) (VBat * 1000.0);
+    HKData[7][record] = (uint16_t) (VBat * 1000.0);
     Flow = getFlow(); //get the flow in LPM
-    HKData[9][record] = (uint16_t)(Flow * 1000); //Flow in ccm
+    HKData[8][record] = (uint16_t)(Flow * 1000); //Flow in ccm
+    HKData[9][record] = (uint16_t)BEMF1_pwm;
+    HKData[10][record] = (uint16_t)BEMF2_pwm;
 //    VMotors = analogRead(MOTOR_V_MON)*3.0/4095.0*5.993;
 //    HKData[10][record] = (uint16_t) (VMotors * 1000.0);
     
@@ -260,10 +261,10 @@ void StratoLPC::ReadHK(int record)
     HKData[12][record] = (uint16_t) (TempPump2 + 273.15) * 100.0; //Kelvin * 100
     TempLaser = OPC.MeasureLTC2983(8);
     HKData[13][record] = (uint16_t) (TempLaser + 273.15) * 100.0; //Kelvin * 100
- //   TempDCDC = OPC.MeasureLTC2983(12);
- //   HKData[14][record] = (uint16_t) (TempDCDC + 273.15) * 100.0; //Kelvin * 100
+    TempPCB = OPC.MeasureLTC2983(12);
+    HKData[14][record] = (uint16_t) (TempPCB + 273.15) * 100.0; //Kelvin * 100
     TempInlet = OPC.MeasureLTC2983(14);
-    HKData[15][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
+    HKData[14][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
     
 }
 
@@ -334,7 +335,7 @@ float StratoLPC::getFlow()
     bb = Wire.read(); //Get second byte
     digital_output=aa<<8;
     digital_output=digital_output+bb; //Combine bytes into an integer
-    flow = 20.0*((digital_output/16383.0)-0.1)/0.8*2.66; //Convert digital output into correct air flow
+    flow = 20.0*((digital_output/16383.0)-0.1)/0.8; //Convert digital output into correct air flow
     
     //Return correct value
     return flow;

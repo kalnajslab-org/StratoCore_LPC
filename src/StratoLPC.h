@@ -21,7 +21,7 @@
 // for testing purposes, use LPC
 #define ZEPHYR_SERIAL   Serial8 // LPC - Teensy 4.1
 #define INSTRUMENT      LPC
-#define ZEPHYR_SERIAL_BUFFER_SIZE 2048
+#define ZEPHYR_SERIAL_BUFFER_SIZE 4096
 
 /// Schedule the OPC for immediate start after entering flight mode,
 /// rather than waiting for the hour.
@@ -194,6 +194,7 @@ private:
     float TempPump2;
     float TempInlet;
     float TempLaser;
+    float TempPCB;
     float VBat;
     float VTeensy;
     float VMotors;
