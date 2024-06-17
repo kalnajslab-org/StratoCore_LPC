@@ -248,8 +248,6 @@ private:
     int _n_rs41_samples = 0;
     /// Array to hold RS41 samples for the TM
     rs41TmSample_t _rs41_samples[RS41_N_SAMPLES_TO_REPORT];
-    /// The time which the first RS41 sample was put into the array
-    uint32_t _rs41_sample_array_start_time;
     /// The current RS41 local file. We will be opening, appending, closing
     /// to this file. When not in flight mode, the string is set to empty.
     String _rs41_filename;

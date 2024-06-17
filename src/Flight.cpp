@@ -36,7 +36,6 @@ void StratoLPC::FlightMode()
         _rs41.init();
         log_nominal((String("RS41: ")+_rs41.banner()).c_str());
         rs41Start();
-        _rs41_sample_array_start_time = now();
     } else {
         rs41Action();
     }
