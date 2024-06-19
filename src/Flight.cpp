@@ -36,7 +36,6 @@ void StratoLPC::FlightMode()
         _rs41.init();
         log_nominal((String("RS41: ")+_rs41.banner()).c_str());
         rs41Start();
-        _rs41_sample_array_start_time = now();
     } else {
         rs41Action();
     }
@@ -199,6 +198,8 @@ void StratoLPC::FlightMode()
             //ZephyrLogFine("Finished measurement");
             ErrorCount = 0;
             inst_substate = FL_SEND_TELEMETRY;
+            log_nominal("Entering FL_SEND_TELEMETRY");
+
         }
         if(ErrorCount > 100)
         {
@@ -211,6 +212,7 @@ void StratoLPC::FlightMode()
         break;
             
     case FL_SEND_TELEMETRY:
+        Serial.println("Shutting down LPC");
         LPC_Shutdown();
         PackageTelemetry(Frame/Set_samplesToAverage);
         Frame = 0;
@@ -226,7 +228,7 @@ void StratoLPC::FlightMode()
         Serial.print(":");
         Serial.println(nextMeasurement.Second);
         inst_substate = FL_IDLE;
-        log_nominal("FL Send Telemetry");
+        log_nominal("Entering FL_IDLE");
         break;
             
     case FL_ERROR:

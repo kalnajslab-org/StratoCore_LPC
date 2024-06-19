@@ -690,10 +690,9 @@ void StratoLPC::rs41Action() {
 
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
             // Transmit the RS41 data
-            rs41SendTelemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
+            rs41SendTelemetry(now(), _rs41_samples, _n_rs41_samples);
             log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
             _n_rs41_samples = 0;
-            _rs41_sample_array_start_time = now();
         }
 
         //*** Local storage handling
@@ -711,7 +710,7 @@ void StratoLPC::rs41Action() {
     }
 }
 
-void StratoLPC::rs41SendTelemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41_sample_array, int n_samples)
+void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_sample_array, int n_samples)
 {
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
@@ -756,7 +755,7 @@ void StratoLPC::rs41SendTelemetry(uint32_t rs41_start_time, rs41TmSample_t* rs41
     zephyrTX.setStateDetails(2, Message);
     
     // Add the initial timestamp
-    zephyrTX.addTm(rs41_start_time);
+    zephyrTX.addTm(time_stamp);
 
     // And the number of samples
     zephyrTX.addTm(uint16_t(n_samples));
