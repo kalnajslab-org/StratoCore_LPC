@@ -180,20 +180,27 @@ TimeElements StratoLPC::Get_Next_Hour()
     current_time = now();
     breakTime(current_time, temp_time);
     
-    if(temp_time.Hour < 23)
-        temp_time.Hour += 1 ;  //advance the hour buy one /* Set this back to 1 */
-    else
+    if(temp_time.Minute + Set_cycleTime < 60)
     {
-        temp_time.Hour = 0;  //unless it is the end of the day
-        temp_time.Day += 1; //then we add one to the day and zero hours
+        temp_time.Minute = temp_time.Minute + (Set_cycleTime - temp_time.Minute%Set_cycleTime); 
+        temp_time.Second = 0; //zero seconds
     }
     
-    temp_time.Minute = 0; //zero minute /* Set this back to zero!*/
-    temp_time.Second = 0; //zero seconds
-    
-    //StartSeconds = makeTime(temp_time);
-    
-    
+    else
+    {
+        if(temp_time.Hour < 23)
+        {
+            temp_time.Hour += 1 ;  //advance the hour buy one /* Set this back to 1 */
+            temp_time.Minute = 0;
+        }
+        else
+        {
+            temp_time.Hour = 0;  //unless it is the end of the day
+            temp_time.Day += 1; //then we add one to the day and zero hours
+            temp_time.Minute = 0;
+        }
+    }
+
     return temp_time;
 }
 
@@ -264,7 +271,7 @@ void StratoLPC::ReadHK(int record)
     TempPCB = OPC.MeasureLTC2983(12);
     HKData[14][record] = (uint16_t) (TempPCB + 273.15) * 100.0; //Kelvin * 100
     TempInlet = OPC.MeasureLTC2983(10);
-    HKData[14][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
+    HKData[15][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
     
 }
 
@@ -352,8 +359,8 @@ int StratoLPC::parsePHA(int charsToParse) {
     memset(LGArray, -999, sizeof(LGArray)); //initialize int arays to -999 so we
     memset(HGArray, -999, sizeof(HGArray)); //know if there are missing values.
     
-    DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
-    DEBUG_SERIAL.println(PHAArray);
+    //DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
+    //DEBUG_SERIAL.println(PHAArray);
     
     strtokIndx = strtok(PHAArray,",");      // get the first part - the timestamp
     PHA_TimeStamp = atoi(strtokIndx);
@@ -363,7 +370,6 @@ int StratoLPC::parsePHA(int charsToParse) {
     PHA_Threshold = atoi(strtokIndx);
     strtokIndx = strtok(NULL, ",");
     PHA_PulseCount = atol(strtokIndx);
-    
    
     //Get the next 255 fields as HG array
     for(i = 255; i > 0; i--)
@@ -372,15 +378,11 @@ int StratoLPC::parsePHA(int charsToParse) {
         if(strtokIndx != NULL)         //if we find a filed
         {
             HGArray[i] = atoi(strtokIndx);     // convert this part to an integer
-            //StringBins += HGArray[i];  // Add value to string to write to SD Card
-            //StringBins += ',';
-            //Serial.print(HGArray[i]);
-            //Serial.print(",");
         }
         else
             return -1;
     }
-    DEBUG_SERIAL.println();
+   
     //Get the next 255 fields as LG array
     for(i = 255; i > 0; i--)
     {
@@ -388,15 +390,10 @@ int StratoLPC::parsePHA(int charsToParse) {
         if(strtokIndx != NULL)          //if we find a filed
         {
             LGArray[i] = atoi(strtokIndx);     // convert this part to an integer
-            //StringBins += LGArray[i];  // Add value to string to write to SD Card
-            //StringBins += ',';
-            DEBUG_SERIAL.print(LGArray[i]);
-            DEBUG_SERIAL.print(",");
         }
         else
             return -1;
     }
-    DEBUG_SERIAL.println();
     return 1;
     
 }
@@ -481,11 +478,11 @@ void StratoLPC::PackageTelemetry(int Records)
         zephyrTX.setStateFlagValue(2, WARN);
     }
     
-    Message.concat(zephyr_gps.latitude);
+    Message.concat(zephyrRX.zephyr_gps.latitude);
     Message.concat(',');
-    Message.concat(zephyr_gps.longitude);
+    Message.concat(zephyrRX.zephyr_gps.longitude);
     Message.concat(',');
-    Message.concat(zephyr_gps.altitude);
+    Message.concat(zephyrRX.zephyr_gps.altitude);
     zephyrTX.setStateDetails(2, Message);
     Message = "";
 

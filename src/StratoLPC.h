@@ -161,8 +161,8 @@ private:
 
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
-    int Set_numberSamples = 90;        // Number of samples to collect for each measurement
-    int Set_samplesToAverage = 2;      // Number of 2 second PHA packets to avergae per sample
+    int Set_numberSamples = 60;        // Number of samples to collect for each measurement
+    int Set_samplesToAverage = 1;      // Number of 2 second PHA packets to avergae per sample
     int Set_cycleTime = 10;            // Time between measurements in minutes
     int Set_warmUpTime = 10;           // Warm up time in seconds
     int Set_LaserTemp = -30;           // Target Laser Temperature
@@ -173,8 +173,9 @@ private:
     bool Set_triggerPHAconfig = false; // Trigger the PHA configuration, which happens during FL_WARMUP
     bool Set_rs41regen = false;        // Initiate an RS41 regeneration
     /* These should be set for each instrument */
-    int Set_HGBinBoundaries[17] = {0,11,23,34,46,57,78,99,120,140,159,207,0,0,0,0,0}; // 16 high gain bins
-    int Set_LGBinBoundaries[17] = {31,36,41,46,55,63,77,89,101,125,162,219,255,0,0,0,0}; //16 Low gain bins
+    /*These are for LPC 0007*/
+    int Set_HGBinBoundaries[17] = {0,6,13,19,25,31,37,48,59,69,78,87,95,102,109,120,129}; // 16 high gain bins
+    int Set_LGBinBoundaries[17] = {26,32,36,40,44,48,57,65,73,81,111,143,187,210,230,255,255}; //16 Low gain bins
     
     
     int NumberLGBins = 16;

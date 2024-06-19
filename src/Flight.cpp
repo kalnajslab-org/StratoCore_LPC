@@ -181,6 +181,12 @@ void StratoLPC::FlightMode()
                     Serial.print("Flow: ");
                     Serial.println(Flow);
                     ReadHK(Frame/Set_samplesToAverage);  //read the HK and put in array (note integer division)
+                    Serial.print("Pump1 T: ");
+                    Serial.println(TempPump1);
+                    Serial.print("Pump2 T: ");
+                    Serial.println(TempPump2);
+                    Serial.print("Inlet T: ");
+                    Serial.println(TempInlet);
                     CheckTemps();
 
                 }
@@ -188,7 +194,7 @@ void StratoLPC::FlightMode()
             }
         }
          
-        if( Frame > Set_numberSamples)
+        if( Frame >= Set_numberSamples)
         {
             //ZephyrLogFine("Finished measurement");
             ErrorCount = 0;
