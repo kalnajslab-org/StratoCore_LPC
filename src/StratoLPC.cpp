@@ -261,7 +261,6 @@ void StratoLPC::ReadHK(int record)
 //    HKData[10][record] = (uint16_t) (VMotors * 1000.0);
     
     /* Reads temperatures from the LTC part*/
-    
     TempPump1 = OPC.MeasureLTC2983(4);
     HKData[11][record] = (uint16_t) (TempPump1 + 273.15) * 100.0; //Kelvin * 100
     TempPump2 = OPC.MeasureLTC2983(6);

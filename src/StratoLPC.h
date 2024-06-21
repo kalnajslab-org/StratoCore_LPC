@@ -161,7 +161,7 @@ private:
 
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
-    int Set_numberSamples = 60;        // Number of samples to collect for each measurement
+    int Set_numberSamples = 90;        // Number of samples to collect for each measurement
     int Set_samplesToAverage = 1;      // Number of 2 second PHA packets to avergae per sample
     int Set_cycleTime = 10;            // Time between measurements in minutes
     int Set_warmUpTime = 10;           // Warm up time in seconds
