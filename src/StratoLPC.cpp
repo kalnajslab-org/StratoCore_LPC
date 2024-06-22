@@ -663,6 +663,9 @@ void StratoLPC::writeLPCtoSD(int Records) {
 
 void StratoLPC::rs41Start() {
     scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
+    if (!_rs41_start_time) {
+        _rs41_start_time = now();
+    }
 }
 
 void StratoLPC::rs41Action() {
@@ -676,11 +679,20 @@ void StratoLPC::rs41Action() {
         // *** Get the RS41 measurement
         RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
 
+        // Detect the initial clock update. THIS ASSUMES THAT THE
+        // SAMPLE RATE IS ONCE PER SECOND.
+        if (now() > (_rs41_start_time + RS41_N_SAMPLES_TO_REPORT)) {
+            // Set start time to now() minus the number of samples collected so far.
+            _rs41_start_time = now() - _n_rs41_samples - 1;
+        }
+
         // *** TM message handling
         // Collect the RS41 sample for the TM message.
         // Convert to the compressed telemetry format.
         _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
-        _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
+
+        _rs41_samples[_n_rs41_samples].secs = now() - _rs41_start_time;
+        Serial.print(_rs41_samples[_n_rs41_samples].secs);
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
         _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
@@ -692,6 +704,7 @@ void StratoLPC::rs41Action() {
             rs41SendTelemetry(now(), _rs41_samples, _n_rs41_samples);
             log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
             _n_rs41_samples = 0;
+            _rs41_start_time = now();
         }
 
         //*** Local storage handling
@@ -714,7 +727,7 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
     sizeof(rs41_sample_array[0].valid) + 
-    sizeof(rs41_sample_array[0].frame) + 
+    sizeof(rs41_sample_array[0].secs) + 
     sizeof(rs41_sample_array[0].tdry) + 
     sizeof(rs41_sample_array[0].humidity) + 
     sizeof(rs41_sample_array[0].pres) + 
@@ -763,7 +776,7 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     for (int i = 0; i < n_samples; i++)
     {
             zephyrTX.addTm(rs41_sample_array[i].valid);
-            zephyrTX.addTm(rs41_sample_array[i].frame);
+            zephyrTX.addTm(rs41_sample_array[i].secs);
             zephyrTX.addTm(rs41_sample_array[i].tdry);
             zephyrTX.addTm(rs41_sample_array[i].humidity);
             zephyrTX.addTm(rs41_sample_array[i].pres);

@@ -61,7 +61,7 @@ enum ScheduleAction_t : uint8_t {
 /// @brief The RS41 compressed sample for use in the RS41 TM message
 struct rs41TmSample_t {
     uint8_t valid;
-    uint32_t frame;
+    uint32_t secs;
     uint16_t tdry;
     uint16_t humidity;
     uint16_t pres;
@@ -255,6 +255,8 @@ private:
     /// The number of RS41 files samples which have been written to
     /// the current _rs41_file. It is used for cycling the RS41 file.
     int _rs41_file_n_samples = 0;
+    /// The start time of the current RS41 collection cycle
+    uint32_t _rs41_start_time = 0;
 
     // Actions
     ActionFlag_t action_flags[NUM_ACTIONS] = {{0}}; // initialize all flags to false
