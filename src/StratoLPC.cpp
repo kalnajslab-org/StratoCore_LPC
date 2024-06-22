@@ -692,7 +692,6 @@ void StratoLPC::rs41Action() {
         _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
 
         _rs41_samples[_n_rs41_samples].secs = now() - _rs41_start_time;
-        Serial.print(_rs41_samples[_n_rs41_samples].secs);
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
         _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
