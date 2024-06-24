@@ -690,10 +690,10 @@ void StratoLPC::rs41Action() {
         // Collect the RS41 sample for the TM message.
         // Convert to the compressed telemetry format.
         _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
-
         _rs41_samples[_n_rs41_samples].secs = now() - _rs41_start_time;
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
+        _rs41_samples[_n_rs41_samples].tsensor = (rs41_data.hsensor_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
         _n_rs41_samples++;
@@ -729,6 +729,7 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     sizeof(rs41_sample_array[0].secs) + 
     sizeof(rs41_sample_array[0].tdry) + 
     sizeof(rs41_sample_array[0].humidity) + 
+     sizeof(rs41_sample_array[0].tsensor) + 
     sizeof(rs41_sample_array[0].pres) + 
     sizeof(rs41_sample_array[0].error); 
 
@@ -765,6 +766,16 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     Message = "RS41";
     zephyrTX.setStateDetails(2, Message);
     
+ // Third Field - GPS Position
+   
+    zephyrTX.setStateFlagValue(3, FINE);
+    Message.concat(zephyrRX.zephyr_gps.latitude);
+    Message.concat(',');
+    Message.concat(zephyrRX.zephyr_gps.longitude);
+    Message.concat(',');
+    Message.concat(zephyrRX.zephyr_gps.altitude);
+    zephyrTX.setStateDetails(3, Message);
+    Message = "";
     // Add the initial timestamp
     zephyrTX.addTm(time_stamp);
 
@@ -778,6 +789,7 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
             zephyrTX.addTm(rs41_sample_array[i].secs);
             zephyrTX.addTm(rs41_sample_array[i].tdry);
             zephyrTX.addTm(rs41_sample_array[i].humidity);
+            zephyrTX.addTm(rs41_sample_array[i].tsensor);
             zephyrTX.addTm(rs41_sample_array[i].pres);
             zephyrTX.addTm(rs41_sample_array[i].error);
     }

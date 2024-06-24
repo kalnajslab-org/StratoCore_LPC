@@ -34,7 +34,7 @@
 #define RS41_SAMPLE_PERIOD_SECS 1
 /// The telemetry reporting period of RS41 samples.
 /// A new local storage file is also made at the same interval.
-#define RS41_N_SAMPLES_TO_REPORT 600
+#define RS41_N_SAMPLES_TO_REPORT 300
 
 // number of loops before a flag becomes stale and is reset
 #define FLAG_STALE      2
@@ -64,6 +64,7 @@ struct rs41TmSample_t {
     uint32_t secs;
     uint16_t tdry;
     uint16_t humidity;
+    uint16_t tsensor;
     uint16_t pres;
     uint16_t error;
 };
@@ -220,8 +221,8 @@ private:
     float error1 = 0.0;
     float error2 = 0.0;
     float Kp = 30.0;
-    int BEMF1_pwm = 512;
-    int BEMF2_pwm = 512;
+    int BEMF1_pwm = 128;
+    int BEMF2_pwm = 128;
     
     /*PHA HK Variables*/
     long PHA_TimeStamp = 0;
