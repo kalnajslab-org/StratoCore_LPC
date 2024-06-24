@@ -122,14 +122,14 @@ void StratoLPC::FlightMode()
             Frame = 0;
             OPCSERIAL.flush();
             log_nominal("Entering FL_MEASURE");
+            MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
+
         }
         log_debug("FL Flush");
         break;
             
     case FL_MEASURE:
-        
-        MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
-            
+                    
         if(OPCSERIAL.available())
         {
             inByte = 0;
