@@ -766,8 +766,8 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     Message = "RS41";
     zephyrTX.setStateDetails(2, Message);
     
- // Third Field - GPS Position
-   
+    // Third Field - GPS Position
+    Message = "";   
     zephyrTX.setStateFlagValue(3, FINE);
     Message.concat(zephyrRX.zephyr_gps.latitude);
     Message.concat(',');
