@@ -635,9 +635,11 @@ void StratoLPC::writeLPCtoSD(int Records) {
     xml += "</StateFlag2>\n";
 
     xml += "\t<StateMess2>";
-    xml += String(VBat);
+    xml += String(zephyrRX.zephyr_gps.latitude);
     xml += String(',');
-    xml += String(VTeensy);
+    xml += String(zephyrRX.zephyr_gps.longitude);
+    xml += String(',');
+    xml += String(zephyrRX.zephyr_gps.altitude);
     xml += "</StateMess2>\n";
 
     xml += "\t<Length>";
