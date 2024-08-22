@@ -69,6 +69,19 @@ sites, and so the library manager can't track revision updates?
 
 ## Arduino notes
 
+- *Rebuilding:* It's a widely complained problem that the ArduinoIDE does not have a way to do a clean
+  build. This is a big hassle when you want to work on cleaning up warnings in our user libraries.
+  There are several convoluted methods proposed for forcing a build. But the simplest one seems to be:
+    - Select a different board type and try to build with that. It doesn't matter which
+      one; it will most likely fail.
+    - Go back to the Teensy 4.1 type, and do a new build. This will rebuild the
+      sketych _and_ all of the user libraries. It will not rebuild the core, but
+      we really don't care about that.
+- Make sure that you have the _Sketchbook location_ set properly in the preferences. It
+  normally is _~/Documents/Arduino_, and contains the directory _libraries/_, which
+  all of our repositories are in. If it is set wrong, you can open a sketch in 
+  a repository, but when you try to build it, the Arduino IDE will not find header files.
+  You need to restart arduinoIDE after you change the preference.
 - The Arduino IDE serial monitor seems to have a limit to the number of lines
   it will display. After a few hours of displaying the output from the instrument, 
   it just stops receiving/displaying anything new.
