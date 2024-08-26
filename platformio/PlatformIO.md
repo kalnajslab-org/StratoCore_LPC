@@ -10,7 +10,7 @@
 
 I found that importing an existing Arduino project is the way to go.
 
-1. Clone StratoCore_LPC to an arbitrary location, e.g. /tmp.
+1. Clone StratoCore_LPC to an arbitrary and temporary location, e.g. /tmp.
    ```sh
    cd /tmp
    git clone git@github.com:MisterMartin/StratoCore_LPC.git
@@ -20,7 +20,7 @@ I found that importing an existing Arduino project is the way to go.
 1. Mash the Home symbol. This will open a tab with "Welcome to PlatformIO"
 1. Select "Import Arduino Project" under "Quick Access".
   1. Select the Teensy 4.1 as the board.
-  1. Choose the folder containing the StratoCore_LPC repository.
+  1. Choose the folder containing the temporary StratoCore_LPC repository.
   1. Choose Arduino as the framework.
 
 The project directory will be created in a directory with the name ~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/. People complain that you can't specify the project name and folder. Still 
@@ -60,4 +60,13 @@ From the PIO Home tab:
 - A menu will show up with PROJECT TASKS. 
 - Press the Build button.
 - For some reason, the build may fail and you have to run it a second time.
+
+# Git
+
+VSCode may not recognize all of the repositories (look in the Source Control tool in the left border).
+To get it to recognize a repo, just ```cd <dir>; git pull``` in each repo directory. 
+Note that the *StratoCore_LPC* repo has been imported into the *src/* directory, so just
+do a ```git pull``` in that directory.
+
+Now Git Graph should see all of your repos.
 
