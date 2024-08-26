@@ -23,8 +23,10 @@ I found that importing an existing Arduino project is the way to go.
   1. Choose the folder containing the temporary StratoCore_LPC repository.
   1. Choose Arduino as the framework.
 
-The project directory will be created in a directory with the name ~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/. People complain that you can't specify the project name and folder. Still 
+- The project directory will be created in a directory with the name *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/*. People complain that you can't specify the project name and folder. Still 
 researching this.
+
+- StratoCore_LPC will be recursively copied to *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/src*. Fortunately, this includes *.git/* 
 
 ## Populating the project with LPC libraries
 
@@ -59,14 +61,14 @@ From the PIO Home tab:
 - Hit the Alien button. 
 - A menu will show up with PROJECT TASKS. 
 - Press the Build button.
-- For some reason, the build may fail and you have to run it a second time.
+- For the initial build, and after a full clean, the build may fail and you have to run it a second time. 
 
 # Git
 
 VSCode may not recognize all of the repositories (look in the Source Control tool in the left border).
 To get it to recognize a repo, just ```cd <dir>; git pull``` in each repo directory. 
 Note that the *StratoCore_LPC* repo has been imported into the *src/* directory, so just
-do a ```git pull``` in that directory.
+do a ```git pull``` in that directory. Now all of your repos will appear in the VSCode source control pane.
 
-Now Git Graph should see all of your repos.
+Git Graph may not show your repos, so for each of the repos, run the *Git Graph: Add Git Repository* command from the VSCode Command Pallette.
 
