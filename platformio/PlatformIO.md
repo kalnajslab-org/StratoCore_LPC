@@ -6,7 +6,7 @@
 1. Enable the command line tools (by making links in .local/bin)
 1. Install the PlaftormIO extension in VSCode.
 
-## Create a project
+## Create the PlatformIO project
 
 I found that importing an existing Arduino project is the way to go.
 
@@ -15,18 +15,28 @@ I found that importing an existing Arduino project is the way to go.
    cd /tmp
    git clone git@github.com:MisterMartin/StratoCore_LPC.git
    ```
-1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize the 
-   PlatformIO, and add a Home symbol to the bottom toolbar.
-1. Mash the Home symbol. This will open a tab with "Welcome to PlatformIO"
+1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize 
+   PlatformIO, open a PLATFORMIO pane, and add a Home symbol to the bottom toolbar.
+   Unfortunately, the pane only has options to open a project or create a project,
+   so we need to use the Home buttom to get the Arduino import option.
+1. Mash the Home symbol. This will open a tab with "Welcome to PlatformIO". 
 1. Select "Import Arduino Project" under "Quick Access".
   1. Select the Teensy 4.1 as the board.
-  1. Choose the folder containing the temporary StratoCore_LPC repository.
+  1. ***Do not*** enable *Use libraries installed by Arduino IDE*.
+  1. Choose the folder containing the temporary StratoCore_LPC 
+     repository.
   1. Choose Arduino as the framework.
-
-- The project directory will be created in a directory with the name *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/*. People complain that you can't specify the project name and folder. Still 
-researching this.
-
-- StratoCore_LPC will be recursively copied to *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/src*. Fortunately, this includes *.git/* 
+1. Press the *Import* button to create the project.
+   - The project directory will be created in a directory with the name 
+   *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/*. There's no
+   option to specify overide the name or location.
+   - StratoCore_LPC will be recursively copied to 
+   *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/src*.
+   Fortunately, this includes *.git/*.
+1. Exit VSCode
+1. Move and rename 
+   *~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/*
+   to something of your choice.
 
 ## Populating the project with LPC libraries
 
