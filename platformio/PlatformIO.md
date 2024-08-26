@@ -15,11 +15,11 @@ I found that importing an existing Arduino project is the way to go.
 1. Mash the Home symbol. This will open a tab with "Welcome to PlatformIO"
 1. Select "Import Arduino Project" under "Quick Access".
   1. Select the Teensy 4.1 as the board.
-  1. Choose the Arduino project folder containing the StratoCore_LPC repository.
-  1. Give it a name.
+  1. Choose the folder containing the StratoCore_LPC repository.
   1. Choose Arduino as the framework.
-  1. Unclick "Use default location", and choose the location for the 
-     project. This will cause a directory to be created containing the framework for PlatformIO.
+
+The project directory will be created in a directory with the name ~/Documents/PlatformIO/Projects/YYMMDD-HHMMSS-TEENSY41/. People complain that you can't specify the project name and folder. Still 
+researching this.
 
 ## Populating the project with LPC libraries
 
@@ -32,10 +32,10 @@ git clone git@github.com:MisterMartin/RS41.git
 git clone git@github.com:MisterMartin/StratoCore.git
 git clone git@github.com:MisterMartin/StrateoleXML.git
 git clone git@github.com:MisterMartin/StratoCore_LPC.git
-unzip StratoCore_LPC/zips/Linduino.zip
-unzip StratoCore_LPC/zips/LTC2983.zip
-unzip StratoCore_LPC/zips/LT_SPI.zip
-unzip StratoCore_LPC/zips/WDT_T4.zip
+unzip ../src/zips/Linduino.zip
+unzip ../src/zips/LTC2983.zip
+unzip ../src/zips/LT_SPI.zip
+unzip ../src/zips/WDT_T4.zip
 ```
 
 # Add Arduino libraries
@@ -50,6 +50,10 @@ From the PIO Home tab:
 - Click on "TinyGPSPlus by Mikal Hart".
 - Press "Add to Project".
 
+# Build
 
-
+- Hit the Alien button. 
+- A menu will show up with PROJECT TASKS. 
+- Press the Build button.
+- For some reason, the build may fail and you have to run it a second time.
 
