@@ -176,7 +176,7 @@ void wait_for_process_to_finish(uint8_t chip_select)
 float get_result(uint8_t chip_select, uint8_t channel_number, uint8_t channel_output)
 {
   uint32_t raw_data;
-  uint8_t fault_data;
+  //uint8_t fault_data;
   uint16_t start_address = get_start_address(CONVERSION_RESULT_MEMORY_BASE, channel_number);
   uint32_t raw_conversion_result;
   float temperature;
@@ -208,7 +208,7 @@ float get_result(uint8_t chip_select, uint8_t channel_number, uint8_t channel_ou
 float print_conversion_result(uint32_t raw_conversion_result, uint8_t channel_output)
 {
   int32_t signed_data = raw_conversion_result;
-  float scaled_result;
+  float scaled_result = 0.0;
 
   // Convert the 24 LSB's into a signed 32-bit integer
   if(signed_data & 0x800000)
