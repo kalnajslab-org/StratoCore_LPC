@@ -10,6 +10,11 @@
 
 I found that importing an existing Arduino project is the way to go.
 
+1. Clone StratoCore_LPC to an arbitrary location, e.g. /tmp.
+   ```sh
+   cd /tmp
+   git clone git@github.com:MisterMartin/StratoCore_LPC.git
+   ```
 1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize the 
    PlatformIO, and add a Home symbol to the bottom toolbar.
 1. Mash the Home symbol. This will open a tab with "Welcome to PlatformIO"
@@ -31,7 +36,6 @@ cd lib
 git clone git@github.com:MisterMartin/RS41.git
 git clone git@github.com:MisterMartin/StratoCore.git
 git clone git@github.com:MisterMartin/StrateoleXML.git
-git clone git@github.com:MisterMartin/StratoCore_LPC.git
 unzip ../src/zips/Linduino.zip
 unzip ../src/zips/LTC2983.zip
 unzip ../src/zips/LT_SPI.zip
