@@ -1,10 +1,11 @@
 # Building StratoCore_LPC Using PlatformIO
 
-## VSCode
+## Install PlatfromIO in VSCode
 
-1. Install PlatformIO Core using the script method (put link here)
-1. Enable the command line tools (by making links in .local/bin)
-1. Install the PlaftormIO extension in VSCode.
+1. Install PlatformIO IDE using the script method (see 
+   the [instructions](https://platformio.org/install/ide?install=vscode)).
+   It can take a minute or two.
+1. Restart VSCode. Don't open a folder yet.
 
 ## Create the PlatformIO project
 
