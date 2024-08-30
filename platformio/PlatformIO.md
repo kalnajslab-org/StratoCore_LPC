@@ -65,8 +65,7 @@ The *TinyGPSPlus* library is used in this project.
 1. Hit the Home button
 1. Push the Libraries button on the left toolbar. It will open a 
    library selector.
-1. Search for TinyGPSPlus.
-1. Click the download button for "TinyGPSPlus by Mikal Hart".
+1. Search for TinyGPSPlus, click on "TinyGPSPlus by Mikal Hart" when it appears.
 1. Press "Add to Project".
 1. Select your project.
 1. Hit Add
