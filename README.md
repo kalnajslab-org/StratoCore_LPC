@@ -65,7 +65,8 @@ sites, and so the library manager can't track revision updates?
 
 ## Building
 
-  Mash the compile button in the Arduino IDE.
+- Open *StratoCore_LPC/StratoCore_LPC.ino* in the ArduinoIDE.
+- Mash the compile button in the Arduino IDE.
 
 ## Arduino notes
 
