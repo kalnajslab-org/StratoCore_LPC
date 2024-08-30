@@ -91,8 +91,6 @@ The *TinyGPSPlus* library is used in this project.
 - Hit the Alien button. 
 - A menu will show up with PROJECT TASKS. 
 - Press the Build button.
-- For the initial build, and after a full clean, the build may fail 
-  and you may have to run it a second time. 
 
 # Upload and Monitor
 - Use the _Upload_ and _Monitor_ buttons in the PlatformIO pane.
