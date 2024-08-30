@@ -1,4 +1,4 @@
-# StratoCore_LPC Development Using PlatformIO
+# StratoCore Development Using PlatformIO
 
 You can have it both ways! 
 
@@ -11,6 +11,10 @@ IntelliSense, static analysis, git integration, and much more.
 This document describes how to work in the
 VSCode PlatformIO environment, using the identical code base,
 and still allows you to use the ArduinoIDE.
+
+*You should be able to complete the following command
+ line actions just by pushing the copy-to-clipboard button
+ and pasting into the VSCode terminal*
 
 ## Install PlatfromIO in VSCode
 
@@ -39,7 +43,7 @@ ProjectName/
           |---src/
 ```
 
-## Import StratoCore_LPC
+## Import the main project
 
 1. Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
 ```sh
@@ -61,24 +65,28 @@ cd ../..
 
 ## Import our libraries
 
-All of the LPC source code libraries will be cloned or unzipped into _lib/_. 
+The project source libraries will be cloned into *lib/*. 
+They will be available for editing and version control.
+
 This can be done in a VSCode terminal:
 ```sh
 cd lib
 git clone https://github.com/MisterMartin/RS41.git
 git clone https://github.com/MisterMartin/StratoCore.git
 git clone https://github.com/MisterMartin/StrateoleXML.git
-unzip ../src/StratoCore_LPC/zips/Linduino.zip
-unzip ../src/StratoCore_LPC/zips/LTC2983.zip
-unzip ../src/StratoCore_LPC/zips/LT_SPI.zip
-unzip ../src/StratoCore_LPC/zips/WDT_T4.zip
 ```
 
-# Add Arduino libraries from the Internet
+# Add other libraries
 
-Add the following line to platformio.ini:
+These will automatically be downloaded to *.pio/libdeps/*,
+and will not be available for editing.
+
+Add the following lines to *platformio.ini*:
 ```sh
-lib_deps = mikalhart/TinyGPSPlus@^1.1.0
+lib_deps = 
+  https://github.com/MisterMartin/StratoLinduino.git
+  mikalhart/TinyGPSPlus@^1.1.0
+  https://github.com/tonton81/WDT_T4.git
 ```
 
 # Build
