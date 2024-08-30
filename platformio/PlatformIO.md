@@ -10,7 +10,7 @@ IntelliSense, static analysis, git integration, and much more.
 
 This document describes how to work in the
 VSCode PlatformIO environment, using the identical code base,
-and with no changes to the ArduinoIDE workflow.
+and still allows you to use the ArduinoIDE.
 
 ## Install PlatfromIO in VSCode
 
