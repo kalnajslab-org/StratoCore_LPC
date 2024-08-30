@@ -97,8 +97,8 @@ The *TinyGPSPlus* library is used in this project.
 - You can add the serial devices to *ProjectName/platformio.ini*
   (substitute your device):
 ```sh
-upload_device = /dev/ttyACM0
-monitor_device = /dev/ttyACM0
+upload_port = /dev/ttyACM0
+monitor_port = /dev/ttyACM0
 ```
 
 # Git
