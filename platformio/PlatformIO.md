@@ -95,10 +95,10 @@ The *TinyGPSPlus* library is used in this project.
 # Upload and Monitor
 - Use the _Upload_ and _Monitor_ buttons in the PlatformIO pane.
 - You can add the serial devices to *ProjectName/platformio.ini*
-  (substitue your device):
+  (substitute your device):
 ```sh
-upload_device=/dev/ttyACM0
-monitor_device=/dev/ttyACM0
+upload_device = /dev/ttyACM0
+monitor_device = /dev/ttyACM0
 ```
 
 # Git
