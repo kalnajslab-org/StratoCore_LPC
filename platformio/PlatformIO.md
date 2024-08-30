@@ -44,7 +44,7 @@ ProjectName/
 1. Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
 ```sh
 cd src
-git clone git@github.com:MisterMartin/StratoCore_LPC.git
+git clone https://github.com:MisterMartin/StratoCore_LPC.git
 cd ..
 ```
 2. Remove the default *main.cpp* (created by PlatformIO), and link 
@@ -65,9 +65,9 @@ All of the LPC source code libraries will be cloned or unzipped into _lib/_.
 This can be done in a VSCode terminal:
 ```sh
 cd lib
-git clone git@github.com:MisterMartin/RS41.git
-git clone git@github.com:MisterMartin/StratoCore.git
-git clone git@github.com:MisterMartin/StrateoleXML.git
+git clone https://github.com:MisterMartin/RS41.git
+git clone https://github.com:MisterMartin/StratoCore.git
+git clone https://github.com:MisterMartin/StrateoleXML.git
 unzip ../src/StratoCore_LPC/zips/Linduino.zip
 unzip ../src/StratoCore_LPC/zips/LTC2983.zip
 unzip ../src/StratoCore_LPC/zips/LT_SPI.zip
