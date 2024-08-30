@@ -15,7 +15,7 @@ and with no changes to the ArduinoIDE workflow.
 ## Install PlatfromIO in VSCode
 
 1. Run VSCode.
-1. Install the PlatformIDE extension.
+1. Install the Platform IDE extension.
 1. Restart VSCode.
 
 ## Create the PlatfromIO project
