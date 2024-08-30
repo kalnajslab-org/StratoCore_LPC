@@ -76,15 +76,10 @@ unzip ../src/StratoCore_LPC/zips/WDT_T4.zip
 
 # Add Arduino libraries from the Internet
 
-The *TinyGPSPlus* library is used in this project. 
-
-1. Hit the Home button
-1. Push the Libraries button on the left toolbar. It will open a 
-   library selector.
-1. Search for TinyGPSPlus, click on "TinyGPSPlus by Mikal Hart" when it appears.
-1. Press "Add to Project".
-1. Select your project.
-1. Hit Add.
+Add the following line to platformio.ini:
+```sh
+lib_deps = mikalhart/TinyGPSPlus@^1.1.0
+```
 
 # Build
 
