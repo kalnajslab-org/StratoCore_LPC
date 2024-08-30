@@ -1,4 +1,16 @@
-# Building StratoCore_LPC Using PlatformIO
+# StratoCore_LPC Development Using PlatformIO
+
+You can have it both ways! 
+
+Compared to the the ArduinoIDE, PlatformIO provides a 
+real software development environment. It includes the
+standard IDE features that software engineers expect, such
+as code completion, edit->build->run->clean workflows,
+IntelliSense, static analysis, git integration, and much more.
+
+This document describes how to work in the
+VSCode PlatformIO environment, using the identical code base,
+and with no changes to the ArduinoIDE workflow.
 
 ## Install PlatfromIO in VSCode
 
@@ -9,17 +21,17 @@
 ## Create the PlatfromIO project
 
 1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize
-   PlatformIO, create a PLATFORMIO pane, and add a Home symbol to the 
+   PlatformIO, create a PLATFORMIO pane, and add a ***Home*** symbol to the 
    bottom toolbar.
 1. Mash the Home button.
 1. Select "New Project".
 1. Give it a name.
-1. Select the Teensy 4.1 as the board.
-1. Uncheck "Use default location", and choose where you want it to go.
-1. Hit Finish, and wait while it builds the project.
+1. Select the Teensy 4.1 as the board (_hint: just type 4.1_).
+1. Uncheck "Location", and choose where you want it to go.
+1. Hit "Finish", and wait while it builds the project.
 
 Use the VSCode file explore to take a look at the created directory structure.
-The ones we care about are:
+The ones which we care about are:
 ```sh
 ProjectName/
           |
@@ -29,23 +41,27 @@ ProjectName/
 
 ## Import StratoCore_LPC
 
-1. Open a VSCode terminal, and clone StratoCore_LPC into the *src* directory:
+1. Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
 ```sh
 cd src
 git clone git@github.com:MisterMartin/StratoCore_LPC.git
+cd ..
 ```
 2. Remove the default *main.cpp* (created by PlatformIO), and link 
-our main program (contains setup())::
+our main program (which contains _setup()_). We are fooling PlatfromIO
+into recognizing the ArduinoIDE _.ino_ file:
 ```sh
-rm main.cpp
+cd src
+rm -f main.cpp
 cd StratoCore_LPC
-ln -s StraoCoreLPC.ino main.cpp
+rm -f main.cpp
+ln -s StratoCore_LPC.ino main.cpp
 cd ../..
 ```
 
 ## Import our libraries
 
-All of the LPC source code libraries will be cloned or unzipped into *lib/*. 
+All of the LPC source code libraries will be cloned or unzipped into _lib/_. 
 This can be done in a VSCode terminal:
 ```sh
 cd lib
@@ -68,7 +84,7 @@ The *TinyGPSPlus* library is used in this project.
 1. Search for TinyGPSPlus, click on "TinyGPSPlus by Mikal Hart" when it appears.
 1. Press "Add to Project".
 1. Select your project.
-1. Hit Add
+1. Hit Add.
 
 # Build
 
@@ -79,7 +95,7 @@ The *TinyGPSPlus* library is used in this project.
   and you may have to run it a second time. 
 
 # Upload and Monitor
-- Use the *Upload* and *Monitor* buttons in the PlatformIO pane.
+- Use the _Upload_ and _Monitor_ buttons in the PlatformIO pane.
 - You can add the serial devices to *ProjectName/platformio.ini*
   (substitue your device):
 ```sh
