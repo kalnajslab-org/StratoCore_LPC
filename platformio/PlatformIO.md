@@ -21,7 +21,7 @@ and with no changes to the ArduinoIDE workflow.
 ## Create the PlatfromIO project
 
 1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize
-   PlatformIO, create a PLATFORMIO pane, and add a ***Home*** symbol to the 
+   PlatformIO, create a PLATFORMIO pane, and add a ***Home*** button to the 
    bottom toolbar.
 1. Mash the Home button.
 1. Select "New Project".
