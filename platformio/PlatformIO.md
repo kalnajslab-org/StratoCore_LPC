@@ -98,8 +98,9 @@ lib_deps =
 
 # Upload and Monitor
 - Use the _Upload_ and _Monitor_ buttons in the PlatformIO pane.
-- You can add the serial devices to *ProjectName/platformio.ini*
-  (substitute your device):
+
+You can add the serial devices to *ProjectName/platformio.ini*,
+but usually not needed unless you are running on a VM:
 ```sh
 upload_port = /dev/ttyACM0
 monitor_port = /dev/ttyACM0
