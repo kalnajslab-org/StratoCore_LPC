@@ -16,17 +16,18 @@ and still allows you to use the ArduinoIDE.
  line actions just by pushing the copy-to-clipboard button
  and pasting into the VSCode terminal*
 
-## Install PlatfromIO in VSCode
+## Install PlatformIO in VSCode
 
 1. Run VSCode.
 1. Install the *PlatformIO IDE* extension.
+1. Mash the 'Alien' button in the left toolbar. This will install
+   PlatformIO core, create a PLATFORMIO pane, and add a ***Home***
+   button to the bottom toolbar.
 1. Restart VSCode.
 
 ## Create the PlatfromIO project
 
-1. Mash the PlatformIO alien symbol on the left toolbar. This will initialize
-   PlatformIO, create a PLATFORMIO pane, and add a ***Home*** button to the 
-   bottom toolbar.
+1. Mash the alien button on the left toolbar. 
 1. Mash the Home button.
 1. Select "New Project".
 1. Give it a name.
