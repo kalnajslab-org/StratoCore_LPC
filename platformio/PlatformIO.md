@@ -58,7 +58,7 @@ into recognizing the ArduinoIDE _.ino_ file:
 ```sh
 cd src
 rm -f main.cpp
-cd StratoCore_LPC
+cd LPC
 rm -f main.cpp
 ln -s StratoCore_LPC.ino main.cpp
 cd ../..
