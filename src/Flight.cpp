@@ -34,11 +34,10 @@ void StratoLPC::FlightMode()
 {
     if (inst_substate == FL_ENTRY) {
         _rs41.init();
-        Serial.println(_rs41.banner());
-        start_rs41();
-        _rs41_sample_array_start_time = now();
+        log_nominal((String("RS41: ")+_rs41.banner()).c_str());
+        rs41Start();
     } else {
-        check_rs41_and_transmit();
+        rs41Action();
     }
     switch (inst_substate) {
     case FL_ENTRY:
@@ -55,8 +54,11 @@ void StratoLPC::FlightMode()
             // On the first call for flight mode we set the nexr warmup period to occur on the next
             // hour.   After that the measurements occur every x minutes after the hour
             StartTime = Get_Next_Hour(); // Get the next whole hour
-            scheduler.AddAction(START_WARMUP, StartTime);  //start the measurement on the next whole hour
-            //scheduler.AddAction(START_WARMUP, 10); //For testing start in 10 seconds
+            if (!OPC_IMMEDIATE_START) {
+                scheduler.AddAction(START_WARMUP, StartTime);  //start the measurement on the next whole hour
+            } else {
+                scheduler.AddAction(START_WARMUP, 10); //For testing start in 10 seconds
+            }
             inst_substate = FL_IDLE; // automatically go to idle
             log_nominal("Entering FL_IDLE");
         }
@@ -100,6 +102,8 @@ void StratoLPC::FlightMode()
             OPCSERIAL.begin(500000);  //PHA serial speed = 0.5Mb
             delay(500);
             OPCSERIAL.setTimeout(2000); //Set the serial timout to 2s
+            // See if the PHA needs to be configured
+            phaConfig();
             scheduler.AddAction(START_MEASUREMENT, Set_FlushingTime);
             inst_substate = FL_FLUSH;
             log_nominal("Entering FL_FLUSH");
@@ -118,14 +122,14 @@ void StratoLPC::FlightMode()
             Frame = 0;
             OPCSERIAL.flush();
             log_nominal("Entering FL_MEASURE");
+            MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
+
         }
         log_debug("FL Flush");
         break;
             
     case FL_MEASURE:
-        
-        MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
-            
+                    
         if(OPCSERIAL.available())
         {
             inByte = 0;
@@ -176,6 +180,12 @@ void StratoLPC::FlightMode()
                     Serial.print("Flow: ");
                     Serial.println(Flow);
                     ReadHK(Frame/Set_samplesToAverage);  //read the HK and put in array (note integer division)
+                    Serial.print("Pump1 T: ");
+                    Serial.println(TempPump1);
+                    Serial.print("Pump2 T: ");
+                    Serial.println(TempPump2);
+                    Serial.print("Inlet T: ");
+                    Serial.println(TempInlet);
                     CheckTemps();
 
                 }
@@ -183,11 +193,13 @@ void StratoLPC::FlightMode()
             }
         }
          
-        if( Frame > Set_numberSamples)
+        if( Frame >= Set_numberSamples)
         {
             //ZephyrLogFine("Finished measurement");
             ErrorCount = 0;
             inst_substate = FL_SEND_TELEMETRY;
+            log_nominal("Entering FL_SEND_TELEMETRY");
+
         }
         if(ErrorCount > 100)
         {
@@ -200,6 +212,7 @@ void StratoLPC::FlightMode()
         break;
             
     case FL_SEND_TELEMETRY:
+        Serial.println("Shutting down LPC");
         LPC_Shutdown();
         PackageTelemetry(Frame/Set_samplesToAverage);
         Frame = 0;
@@ -215,7 +228,7 @@ void StratoLPC::FlightMode()
         Serial.print(":");
         Serial.println(nextMeasurement.Second);
         inst_substate = FL_IDLE;
-        log_nominal("FL Send Telemetry");
+        log_nominal("Entering FL_IDLE");
         break;
             
     case FL_ERROR:
@@ -230,6 +243,9 @@ void StratoLPC::FlightMode()
         break;
     case FL_EXIT:
         LPC_Shutdown();
+        _rs41.pwr_off();
+        _rs41_filename = "";
+        _rs41_file_n_samples = 0;
         log_nominal("Exiting FL");
         break;
     default:
@@ -237,49 +253,5 @@ void StratoLPC::FlightMode()
         log_error("Unknown substate in FL");
         inst_substate = FL_ENTRY; // reset
         break;
-    }
-}
-
-void StratoLPC::start_rs41() {
-    scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
-}
-
-void StratoLPC::check_rs41_and_transmit() {
-    if (CheckAction(RS41_SAMPLE)) {
-        // Get the RS41 measurement
-        RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
-
-        // Collect the RS41 sample
-        // Convert to the compressed telemetry format
-        _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
-        _rs41_samples[_n_rs41_samples].frame = rs41_data.frame_count;
-        _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
-        _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
-        _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*10;
-        _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
-        _n_rs41_samples++;
-
-        if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
-            // Transmit the RS41 data
-            SendRS41Telemetry(_rs41_sample_array_start_time, _rs41_samples, _n_rs41_samples);
-            log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
-            if (0) {
-                for (int i=0; i<RS41_N_SAMPLES_TO_REPORT; i++) {
-                    Serial.println(
-                        "valid:" + String(_rs41_samples[i].valid) + " " +
-                        "frame:" + String(_rs41_samples[i].frame) + " " +
-                        "tdry:" + String(_rs41_samples[i].tdry/100.0-100.0) + " " +
-                        "humidity:" + String(_rs41_samples[i].humidity/100.0) + " " +
-                        "pres:" + String(_rs41_samples[i].pres/10.0) + " " +
-                        "err:" + String(_rs41_samples[i].error)
-                    );
-                }
-            }
-            _n_rs41_samples = 0;
-            _rs41_sample_array_start_time = now();
-        }
-        
-        // Schedule the next measurement
-        start_rs41();
     }
 }

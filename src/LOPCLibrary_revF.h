@@ -54,9 +54,6 @@
 #define RESET 9
 #define INTERUPT 27
 
-//Flow Meter Constants
-#define MFS_POWER 24
-
 //DIO Constants
 #define PUMP1_PWR 5
 #define PUMP2_PWR 6

@@ -24,6 +24,7 @@ StratoLPC::StratoLPC()
 void StratoLPC::InstrumentSetup()
 {   
     OPC.SetUp();  //Setup the board
+    OPC.configure_memory_table(); //This is necessary to load custom thermister coefficients
     OPC.ConfigureChannels(); //Setup the LTC2983 Channels
 
     /*Figure out haw many High Gain and Low Gain Bins we Have */
@@ -84,6 +85,20 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
     case SETLGBINS:
         // todo: reader gets 24 values, class expects 16
         log_error("LG bins unimplemented");
+        break;
+    case SETPHA:
+        Set_phaHiGainThreshold = lpcParam.phaHiGainThreshold;
+        Set_phaHiGainOffset = lpcParam.phaHiGainOffset;
+        Set_phaLoGainOffset = lpcParam.phaLoGainOffset;
+        Set_triggerPHAconfig = true;
+        ZephyrLogFine((String("TC: Change PHA requested")
+            + String(" HiGainThreshold:") + String(Set_phaHiGainThreshold)
+            + String(", HiGainOffset:") + String(Set_phaHiGainOffset)
+            + String(", LoGainOffset:") + String(Set_phaLoGainOffset)).c_str());
+        break;
+    case REGENRS41:
+        Set_rs41regen = true;
+        ZephyrLogFine("TC: RS41 regen requested");
         break;
     default:
         ZephyrLogWarn("Unknown TC received");
@@ -148,7 +163,7 @@ void StratoLPC::LPC_Shutdown()
     pinMode(1,INPUT);
     digitalWrite(1, LOW);
     
-    digitalWrite(MFS_POWER, LOW); //Turn off AFS
+    //digitalWrite(MFS_POWER, LOW); //Turn off AFS
     digitalWrite(PHA_POWER, LOW); //Turn off Optical Head
     digitalWrite(HEATER1, LOW); //Turn off Laser Heater
     digitalWrite(HEATER2, LOW); //Turn of unused heater
@@ -165,20 +180,27 @@ TimeElements StratoLPC::Get_Next_Hour()
     current_time = now();
     breakTime(current_time, temp_time);
     
-    if(temp_time.Hour < 23)
-        temp_time.Hour += 1 ;  //advance the hour buy one /* Set this back to 1 */
-    else
+    if(temp_time.Minute + Set_cycleTime < 60)
     {
-        temp_time.Hour = 0;  //unless it is the end of the day
-        temp_time.Day += 1; //then we add one to the day and zero hours
+        temp_time.Minute = temp_time.Minute + (Set_cycleTime - temp_time.Minute%Set_cycleTime); 
+        temp_time.Second = 0; //zero seconds
     }
     
-    temp_time.Minute = 0; //zero minute /* Set this back to zero!*/
-    temp_time.Second = 0; //zero seconds
-    
-    //StartSeconds = makeTime(temp_time);
-    
-    
+    else
+    {
+        if(temp_time.Hour < 23)
+        {
+            temp_time.Hour += 1 ;  //advance the hour buy one /* Set this back to 1 */
+            temp_time.Minute = 0;
+        }
+        else
+        {
+            temp_time.Hour = 0;  //unless it is the end of the day
+            temp_time.Day += 1; //then we add one to the day and zero hours
+            temp_time.Minute = 0;
+        }
+    }
+
     return temp_time;
 }
 
@@ -222,32 +244,32 @@ void StratoLPC::ReadHK(int record)
     HKData[1][record] = (uint16_t) IPump1; //Current in mA
     HKData[2][record] = (uint16_t) IPump2; //Current in mA
     IHeater1 = analogRead(HEATER1_I)/1.058;
-    HKData[3][record] = (uint16_t) IHeater1;  //Current in mA 
-    HKData[4][record] = (uint16_t) IDetector;  //Current in mA
+    HKData[3][record] = (uint16_t) IDetector;  //Current in mA
     VDetector = analogRead(PHA_12V_V)*3.3/4095.0*5.993;
-    HKData[5][record] = (uint16_t) (VDetector * 1000.0);  //Volts in mV
+    HKData[4][record] = (uint16_t) (VDetector * 1000.0);  //Volts in mV
     VPHA = analogRead(PHA_3V3_V)*3.3/4095.0*2.0;
-    HKData[6][record] = (uint16_t) (VPHA * 1000.0); //Volts in mV
+    HKData[5][record] = (uint16_t) (VPHA * 1000.0); //Volts in mV
     VTeensy = analogRead(TEENSY_3V3)*3.3/4095.0*2.0;
-    HKData[7][record] = (uint16_t) (VTeensy * 1000.0); //volte in mV
+    HKData[6][record] = (uint16_t) (VTeensy * 1000.0); //volte in mV
     VBat = analogRead(BATTERY_V)*3.3/4095.0 *6.772;
-    HKData[8][record] = (uint16_t) (VBat * 1000.0);
+    HKData[7][record] = (uint16_t) (VBat * 1000.0);
     Flow = getFlow(); //get the flow in LPM
-    HKData[9][record] = (uint16_t)(Flow * 1000); //Flow in ccm
+    HKData[8][record] = (uint16_t)(Flow * 1000); //Flow in ccm
+    HKData[9][record] = (uint16_t)BEMF1_pwm;
+    HKData[10][record] = (uint16_t)BEMF2_pwm;
 //    VMotors = analogRead(MOTOR_V_MON)*3.0/4095.0*5.993;
 //    HKData[10][record] = (uint16_t) (VMotors * 1000.0);
     
     /* Reads temperatures from the LTC part*/
-    
     TempPump1 = OPC.MeasureLTC2983(4);
     HKData[11][record] = (uint16_t) (TempPump1 + 273.15) * 100.0; //Kelvin * 100
     TempPump2 = OPC.MeasureLTC2983(6);
     HKData[12][record] = (uint16_t) (TempPump2 + 273.15) * 100.0; //Kelvin * 100
     TempLaser = OPC.MeasureLTC2983(8);
     HKData[13][record] = (uint16_t) (TempLaser + 273.15) * 100.0; //Kelvin * 100
- //   TempDCDC = OPC.MeasureLTC2983(12);
- //   HKData[14][record] = (uint16_t) (TempDCDC + 273.15) * 100.0; //Kelvin * 100
-    TempInlet = OPC.MeasureLTC2983(14);
+    TempPCB = OPC.MeasureLTC2983(12);
+    HKData[14][record] = (uint16_t) (TempPCB + 273.15) * 100.0; //Kelvin * 100
+    TempInlet = OPC.MeasureLTC2983(10);
     HKData[15][record] = (uint16_t) (TempInlet + 273.15) * 100.0; //Kelvin * 100
     
 }
@@ -319,7 +341,7 @@ float StratoLPC::getFlow()
     bb = Wire.read(); //Get second byte
     digital_output=aa<<8;
     digital_output=digital_output+bb; //Combine bytes into an integer
-    flow = 20.0*((digital_output/16383.0)-0.1)/0.8*2.66; //Convert digital output into correct air flow
+    flow = 20.0*((digital_output/16383.0)-0.1)/0.8; //Convert digital output into correct air flow
     
     //Return correct value
     return flow;
@@ -336,8 +358,8 @@ int StratoLPC::parsePHA(int charsToParse) {
     memset(LGArray, -999, sizeof(LGArray)); //initialize int arays to -999 so we
     memset(HGArray, -999, sizeof(HGArray)); //know if there are missing values.
     
-    DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
-    DEBUG_SERIAL.println(PHAArray);
+    //DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
+    //DEBUG_SERIAL.println(PHAArray);
     
     strtokIndx = strtok(PHAArray,",");      // get the first part - the timestamp
     PHA_TimeStamp = atoi(strtokIndx);
@@ -347,7 +369,6 @@ int StratoLPC::parsePHA(int charsToParse) {
     PHA_Threshold = atoi(strtokIndx);
     strtokIndx = strtok(NULL, ",");
     PHA_PulseCount = atol(strtokIndx);
-    
    
     //Get the next 255 fields as HG array
     for(i = 255; i > 0; i--)
@@ -356,15 +377,11 @@ int StratoLPC::parsePHA(int charsToParse) {
         if(strtokIndx != NULL)         //if we find a filed
         {
             HGArray[i] = atoi(strtokIndx);     // convert this part to an integer
-            //StringBins += HGArray[i];  // Add value to string to write to SD Card
-            //StringBins += ',';
-            //Serial.print(HGArray[i]);
-            //Serial.print(",");
         }
         else
             return -1;
     }
-    DEBUG_SERIAL.println();
+   
     //Get the next 255 fields as LG array
     for(i = 255; i > 0; i--)
     {
@@ -372,15 +389,10 @@ int StratoLPC::parsePHA(int charsToParse) {
         if(strtokIndx != NULL)          //if we find a filed
         {
             LGArray[i] = atoi(strtokIndx);     // convert this part to an integer
-            //StringBins += LGArray[i];  // Add value to string to write to SD Card
-            //StringBins += ',';
-            DEBUG_SERIAL.print(LGArray[i]);
-            DEBUG_SERIAL.print(",");
         }
         else
             return -1;
     }
-    DEBUG_SERIAL.println();
     return 1;
     
 }
@@ -438,7 +450,6 @@ void StratoLPC::PackageTelemetry(int Records)
     if ((TempLaser > 50.0) || (TempLaser < -30.0))
         flag1 = false;
     
-    
     /*Check Voltages are in range */
     if ((VBat > 18.0) || (VBat < 14.0))
         flag2 = false;
@@ -466,18 +477,18 @@ void StratoLPC::PackageTelemetry(int Records)
         zephyrTX.setStateFlagValue(2, WARN);
     }
     
-    Message.concat(VBat);
+    Message.concat(zephyrRX.zephyr_gps.latitude);
     Message.concat(',');
-    Message.concat(VTeensy);
+    Message.concat(zephyrRX.zephyr_gps.longitude);
+    Message.concat(',');
+    Message.concat(zephyrRX.zephyr_gps.altitude);
     zephyrTX.setStateDetails(2, Message);
     Message = "";
-
 
     /* Build the telemetry binary array */
     
     /* Add the initial timestamp */
     zephyrTX.addTm(MeasurementStartTime);
-    
     
     for(n = 0; n < NumberHKChannels; n++) //add all the initial HK values
     {
@@ -503,31 +514,224 @@ void StratoLPC::PackageTelemetry(int Records)
         }
     }
 
-   
-    
-    //zephyrTX.addTm((uint16_t) 0xFFFF);
-
     Serial.print("Sending Records: ");
     Serial.println(m);
     Serial.print("Sending Bytes: ");
     Serial.println(i);
     
-    
     /* send the TM packet to the OBC */
     zephyrTX.TM();
-    
-    //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
-    //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
+
+    // Save data to local storage
+    writeLPCtoSD(Records);
 }
 
-void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_sample_array, int n_samples)
+void StratoLPC::phaConfig() {
+    if (!Set_triggerPHAconfig) {
+        return;
+    }
+
+    // Clear the trigger
+    Set_triggerPHAconfig = false;
+
+    // Verify parameters
+    if ((Set_phaHiGainThreshold >= 1024) ||
+        (Set_phaHiGainOffset >= 4096) ||
+        (Set_phaLoGainOffset >= 4096)) {
+            log_error((
+                String("PHA config range error: ") +
+                String() + String(", ") +
+                String() + String(", ") +
+                String() + String(" ") +
+                String("PHA will not be configured")).c_str());
+            return;
+        }
+
+    // Send the commands to the PHA
+    String cmd;
+
+    delay(100);
+    cmd = String("#thresh,") + String(Set_phaHiGainThreshold) + String("\r");
+    OPCSERIAL.print(cmd.c_str());
+    log_nominal((String("PHA Hi Gain Threshold commanded: ") + cmd).c_str());
+
+    delay(100);
+    cmd = String("#hgoff,") + String(Set_phaHiGainOffset) + String("\r");
+    OPCSERIAL.print(cmd.c_str());
+    log_nominal((String("PHA Hi Gain Baseline Offset commanded: ") + cmd).c_str());
+
+    delay(100);
+    cmd = String("#lgoff,") + String(Set_phaLoGainOffset) + String("\r");
+    OPCSERIAL.print(cmd.c_str());
+    log_nominal((String("PHA Lo Gain Baseline Offset commanded: ") + cmd).c_str());
+    delay(100);
+
+    // Have the PHA save the new values
+    OPCSERIAL.print("#save\r");
+}
+
+void StratoLPC::writeLPCtoSD(int Records) {
+
+    // We are building a facsimile of the TM message generated
+    // by XMLwriter.
+    //
+    // XMLwriter doesn't keep a copy of the built XML header,
+    // so we build that here.
+    //
+    // XMLwriter does make avaiable a buffer of the binary payload,
+    // so we will use that to fill in the binary data.
+    //
+    // There are 2 designed-in differences from the XMLwriter:
+    //  - The Msg number is fixed at 0.
+    //  - The CRC is not calculated. It is set to 0
+
+    String lpc_file_name = SDFileName("LPC_", ".ready_tm", now());
+    File lpc_file = SD.open(lpc_file_name.c_str(), FILE_WRITE);
+    if (!lpc_file) {
+        log_error((String("Unable to open ") + String(lpc_file_name)
+         + String(", LPC data will not be written")).c_str());
+        return;
+    }
+
+    log_nominal((String("Writing LPC to ") + lpc_file_name).c_str());
+    bool flag1 = true;
+    bool flag2 = true;
+    uint8_t* tm_buffer;
+
+    // Fetch the length of the binary segment, and a pointer to the buffer.
+    uint16_t num_elements = zephyrTX.getTmBuffer(&tm_buffer);
+
+    if ((TempPump1 > 60.0) || (TempPump1 < -30.0)) {flag1 = false;}
+    if ((TempPump2 > 60.0) || (TempPump2 < -30.0)) {flag1 = false;}
+    if ((TempLaser > 50.0) || (TempLaser < -30.0)) {flag1 = false;}
+    if ((VBat > 18.0) || (VBat < 14.0)) {flag2 = false;}
+
+    String xml = "<TM>\n";
+    xml += "\t<Msg>0</Msg>\n";
+    xml += "\t<Inst>LPC</Inst>\n";
+
+    xml += "\t<StateFlag1>";
+    if (flag1) {
+        xml += "WARN";
+    } else {
+        xml += "FINE";
+    }
+    xml += "</StateFlag1>\n";
+
+    xml += "\t<StateMess1>";
+    xml += String(TempPump1);
+    xml += String(',');
+    xml += String(TempPump2);
+    xml += String(',');
+    xml += String(TempLaser);
+    xml += "</StateMess1>\n";
+
+    xml += "\t<StateFlag2>";
+    if (flag2) {
+        xml += "FINE";
+    } else {
+        xml += "WARN";
+    }
+    xml += "</StateFlag2>\n";
+
+    xml += "\t<StateMess2>";
+    xml += String(zephyrRX.zephyr_gps.latitude);
+    xml += String(',');
+    xml += String(zephyrRX.zephyr_gps.longitude);
+    xml += String(',');
+    xml += String(zephyrRX.zephyr_gps.altitude);
+    xml += "</StateMess2>\n";
+
+    xml += "\t<Length>";
+    xml += String(num_elements);
+    xml += "</Length>";
+    xml += "</TM>\n";
+
+    xml += "<CRC>00000</CRC>\n";
+    lpc_file.write(xml.c_str());
+
+    lpc_file.write("START");
+    
+    //Write the binary payload
+    lpc_file.write(tm_buffer, num_elements);
+    uint16_t crc_zero = 0;
+    lpc_file.write(&crc_zero, sizeof(uint16_t));
+    lpc_file.write("END");
+
+    // Finished
+    lpc_file.close();
+    log_nominal((lpc_file_name +String(" written")).c_str());
+}
+
+void StratoLPC::rs41Start() {
+    scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
+    if (!_rs41_start_time) {
+        _rs41_start_time = now();
+    }
+}
+
+void StratoLPC::rs41Action() {
+    if (CheckAction(RS41_SAMPLE)) {
+        if (Set_rs41regen) {
+            log_nominal("RS41 regeneration initiated");
+            log_nominal(_rs41.recondition().c_str());
+            Set_rs41regen = false;
+        }
+
+        // *** Get the RS41 measurement
+        RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
+
+        // Detect the initial clock update. THIS ASSUMES THAT THE
+        // SAMPLE RATE IS ONCE PER SECOND.
+        if (now() > (_rs41_start_time + RS41_N_SAMPLES_TO_REPORT)) {
+            // Set start time to now() minus the number of samples collected so far.
+            _rs41_start_time = now() - _n_rs41_samples - 1;
+        }
+
+        // *** TM message handling
+        // Collect the RS41 sample for the TM message.
+        // Convert to the compressed telemetry format.
+        _rs41_samples[_n_rs41_samples].valid = rs41_data.valid;
+        _rs41_samples[_n_rs41_samples].secs = now() - _rs41_start_time;
+        _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
+        _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
+        _rs41_samples[_n_rs41_samples].tsensor = (rs41_data.hsensor_temp_degC+100)*100;
+        _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
+        _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
+        _n_rs41_samples++;
+
+        if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
+            // Transmit the RS41 data
+            rs41SendTelemetry(now(), _rs41_samples, _n_rs41_samples);
+            log_nominal(String("Transmit " + String(_n_rs41_samples) + " RS41 samples").c_str());
+            _n_rs41_samples = 0;
+            _rs41_start_time = now();
+        }
+
+        //*** Local storage handling
+        if (time_valid) {
+            rs41LocalStorage(rs41_data);
+        }
+
+        // *** Console print
+        if(RS41_DEBUG_PRINT) {
+            rs41PrintCsv(rs41_data);
+        }
+
+        // *** Schedule the next measurement
+        rs41Start();
+    }
+}
+
+void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_sample_array, int n_samples)
 {
     // Calculate the size of a transmitted data frame
     int sample_bytes = 
     sizeof(rs41_sample_array[0].valid) + 
-    sizeof(rs41_sample_array[0].frame) + 
+    sizeof(rs41_sample_array[0].secs) + 
     sizeof(rs41_sample_array[0].tdry) + 
     sizeof(rs41_sample_array[0].humidity) + 
+     sizeof(rs41_sample_array[0].tsensor) + 
     sizeof(rs41_sample_array[0].pres) + 
     sizeof(rs41_sample_array[0].error); 
 
@@ -543,6 +747,7 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
         zephyrTX.setStateFlagValue(1, FINE);
     } else {
         zephyrTX.setStateFlagValue(1, WARN);
+        Message += "RS41 error flag";
     } 
     zephyrTX.setStateDetails(1, Message);
 
@@ -557,12 +762,24 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     } else {
         zephyrTX.setStateFlagValue(2, WARN);
     }
-    zephyrTX.setStateDetails(2, Message);
 
-    // Build the telemetry binary data array
+    // Set StateMess2 to "RS41" so that TM decoders can distiguish
+    // between LPC messages and RS41 messages.
+    Message = "RS41";
+    zephyrTX.setStateDetails(2, Message);
     
+    // Third Field - GPS Position
+    Message = "";   
+    zephyrTX.setStateFlagValue(3, FINE);
+    Message.concat(zephyrRX.zephyr_gps.latitude);
+    Message.concat(',');
+    Message.concat(zephyrRX.zephyr_gps.longitude);
+    Message.concat(',');
+    Message.concat(zephyrRX.zephyr_gps.altitude);
+    zephyrTX.setStateDetails(3, Message);
+    Message = "";
     // Add the initial timestamp
-    zephyrTX.addTm(rs41_start_time);
+    zephyrTX.addTm(time_stamp);
 
     // And the number of samples
     zephyrTX.addTm(uint16_t(n_samples));
@@ -571,14 +788,13 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     for (int i = 0; i < n_samples; i++)
     {
             zephyrTX.addTm(rs41_sample_array[i].valid);
-            zephyrTX.addTm(rs41_sample_array[i].frame);
+            zephyrTX.addTm(rs41_sample_array[i].secs);
             zephyrTX.addTm(rs41_sample_array[i].tdry);
             zephyrTX.addTm(rs41_sample_array[i].humidity);
+            zephyrTX.addTm(rs41_sample_array[i].tsensor);
             zephyrTX.addTm(rs41_sample_array[i].pres);
             zephyrTX.addTm(rs41_sample_array[i].error);
     }
-
-    //zephyrTX.addTm((uint16_t) 0xFFFF);
 
     Serial.print("Sending RS41 samples: ");
     Serial.println(n_samples);
@@ -588,7 +804,88 @@ void StratoLPC::SendRS41Telemetry(uint32_t rs41_start_time, RS41Sample_t* rs41_s
     /* send the TM packet to the OBC */
     zephyrTX.TM();
     
-    //memset(BinData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
-    //memset(HKData,0,sizeof(BinData)); //After we send a TM packet, zero out the arrays.
 }
 
+void StratoLPC::rs41LocalStorage(RS41::RS41SensorData_t& rs41_data) {
+
+    File rs41_file;
+
+    // On the first entry or after FL_EXIT, there will be no file name
+    if (!_rs41_filename.length() || (_rs41_file_n_samples >= RS41_N_SAMPLES_TO_REPORT)) {
+        _rs41_filename = SDFileName("RS41_", ".csv", now());
+        _rs41_file_n_samples = 0;
+        // Create the new file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            log_error((String("Unable to open ") + _rs41_filename + String(", RS41 dat will not be stored")).c_str());
+        } else {
+            log_nominal((String("RS41 csv will be logged to ") + _rs41_filename).c_str());
+            rs41_file.write(rs41CsvHeader().c_str());
+            rs41_file.write("\n");
+        }
+    }
+    
+    _rs41_file_n_samples++;
+
+    // If the file was not opened above
+    if (!rs41_file) {
+        // Open an existing file
+        rs41_file = SD.open(_rs41_filename.c_str(), FILE_WRITE);
+        // Verify that the file can be written
+        if (!rs41_file) {
+            return;
+        }
+    }
+
+    String csv_str = rs41CsvData(rs41_data);
+    rs41_file.write(csv_str.c_str());
+    rs41_file.write("\n");
+    rs41_file.close();
+}
+
+String StratoLPC::rs41CsvData( RS41::RS41SensorData_t &rs41_data) {
+    String comma(",");
+    String csv_str = 
+        TimeString(now()) + comma +
+        String(rs41_data.valid) + comma +
+        String(rs41_data.frame_count) + comma +
+        String(rs41_data.air_temp_degC) + comma +
+        String(rs41_data.humdity_percent) + comma +
+        String(rs41_data.hsensor_temp_degC) + comma +
+        String(rs41_data.pres_mb) + comma +
+        String(rs41_data.internal_temp_degC) + comma +
+        String(rs41_data.module_status) + comma +
+        String(rs41_data.module_error) + comma +
+        String(rs41_data.pcb_supply_V) + comma +
+        String(rs41_data.lsm303_temp_degC) + comma +
+        String(rs41_data.pcb_heater_on) + comma +
+        String(rs41_data.mag_hdgXY_deg) + comma +
+        String(rs41_data.mag_hdgXZ_deg) + comma +
+        String(rs41_data.mag_hdgYZ_deg) + comma +
+        String(rs41_data.accelX_mG) + comma +
+        String(rs41_data.accelY_mG) + comma +
+        String(rs41_data.accelZ_mG);
+
+    return csv_str;
+}
+
+String StratoLPC::rs41CsvHeader() {
+    return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,mag_hdgXY_deg,mag_hdgXZ_deg,mag_hdgYZ_deg,accelX_mG,accelY_mG,accelZ_mG");
+}
+
+void StratoLPC::rs41PrintCsv( RS41::RS41SensorData_t &rs41_data) {
+    Serial.println(rs41CsvData(rs41_data));
+}
+
+String StratoLPC::SDFileName(String prefix, String extension, time_t timetag) {
+    return prefix + TimeString(timetag) + extension;
+}
+
+String StratoLPC::TimeString(time_t timetag) {
+    char buf[50];
+    struct tm* tm_time;
+    tm_time = gmtime(&timetag);
+    strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", tm_time);
+    return String(buf);
+}
