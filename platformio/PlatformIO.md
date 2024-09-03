@@ -49,7 +49,7 @@ ProjectName/
 1. Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
 ```sh
 cd src
-git clone https://github.com/MisterMartin/StratoCore_LPC.git
+git clone https://github.com/kalnajslab-org/LPC.git
 cd ..
 ```
 2. Remove the default *main.cpp* (created by PlatformIO), and link 
@@ -72,9 +72,9 @@ They will be available for editing and version control.
 This can be done in a VSCode terminal:
 ```sh
 cd lib
-git clone https://github.com/MisterMartin/RS41.git
-git clone https://github.com/MisterMartin/StratoCore.git
-git clone https://github.com/MisterMartin/StrateoleXML.git
+git clone https://github.com/kalnajslab-org/RS41.git
+git clone https://github.com/kalnajslab-org/StratoCore.git
+git clone https://github.com/kalnajslab-org/StrateoleXML.git
 cd ..
 ```
 
@@ -85,7 +85,7 @@ libraries which will automatically be downloaded to *.pio/libdeps/*,
 and will not be available for editing.
 
 ```sh
-cp src/StratoCore_LPC/platformio/LPC_platformio.ini platformio.ini
+cp src/LPC/platformio/LPC_platformio.ini platformio.ini
 ```
 
 # Build
