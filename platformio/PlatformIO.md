@@ -85,7 +85,7 @@ libraries which will automatically be downloaded to *.pio/libdeps/*,
 and will not be available for editing.
 
 ```sh
-cp src/StratoCore_LPC/platformio/LCP_platformio.ini platformio.ini
+cp src/StratoCore_LPC/platformio/LPC_platformio.ini platformio.ini
 ```
 
 # Build
