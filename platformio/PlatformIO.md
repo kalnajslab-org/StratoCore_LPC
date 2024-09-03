@@ -108,10 +108,9 @@ monitor_port = /dev/ttyACM0
 
 # Git
 
-VSCode may not recognize all of the repositories (look in the Source 
-Control tool in the left border).
-To get it to recognize a repo, just ```cd <repo_dir>; git pull``` in each 
-repo directory. 
+VSCode may not find all of the repositories (look in the Source 
+Control tool in the left border). To get it to recognize a repo, 
+just open a file in each repository.
 
 Now all of your repos should appear in the VSCode source control pane.
 
