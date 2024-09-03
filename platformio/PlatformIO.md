@@ -75,19 +75,17 @@ cd lib
 git clone https://github.com/MisterMartin/RS41.git
 git clone https://github.com/MisterMartin/StratoCore.git
 git clone https://github.com/MisterMartin/StrateoleXML.git
+cd ..
 ```
 
-# Add other libraries
+# Add other libraries and flags
 
-These will automatically be downloaded to *.pio/libdeps/*,
+Copy our *LPC_platformio.ini* to *platformio.ini*. This will add other
+libraries which will automatically be downloaded to *.pio/libdeps/*,
 and will not be available for editing.
 
-Add the following lines to *platformio.ini*:
 ```sh
-lib_deps = 
-  https://github.com/MisterMartin/StratoLinduino.git
-  mikalhart/TinyGPSPlus@^1.1.0
-  https://github.com/tonton81/WDT_T4.git
+cp src/StratoCore_LPC/platformio/LCP_platformio.ini platformio.ini
 ```
 
 # Build
