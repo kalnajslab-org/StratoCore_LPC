@@ -46,46 +46,20 @@ ProjectName/
 
 ## Import the main project
 
-1. Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
+Open a VSCode terminal, and clone StratoCore_LPC into the *src/* directory:
 ```sh
 cd src
 git clone https://github.com/kalnajslab-org/LPC.git
 cd ..
 ```
-2. Remove the default *main.cpp* (created by PlatformIO), and link 
-our main program (which contains _setup()_). We are fooling PlatfromIO
-into recognizing the ArduinoIDE _.ino_ file:
+
+## Finish the setup
+
 ```sh
+rm platformio.ini
+ln -s src/LPC/platformio/platformio.ini
 cd src
-rm -f main.cpp
-cd LPC
-rm -f main.cpp
-ln -s StratoCore_LPC.ino main.cpp
-cd ../..
-```
-
-## Import our libraries
-
-The project source libraries will be cloned into *lib/*. 
-They will be available for editing and version control.
-
-This can be done in a VSCode terminal:
-```sh
-cd lib
-git clone https://github.com/kalnajslab-org/RS41.git
-git clone https://github.com/kalnajslab-org/StratoCore.git
-git clone https://github.com/kalnajslab-org/StrateoleXML.git
-cd ..
-```
-
-# Add other libraries and flags
-
-Copy our *LPC_platformio.ini* to *platformio.ini*. This will add other
-libraries which will automatically be downloaded to *.pio/libdeps/*,
-and will not be available for editing.
-
-```sh
-cp src/LPC/platformio/LPC_platformio.ini platformio.ini
+rm main.cpp
 ```
 
 # Build
