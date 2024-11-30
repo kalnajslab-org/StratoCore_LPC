@@ -1,4 +1,4 @@
-# StrateoCore_LPC
+# StratoCore_LPC
 
 LASP Optical Particle Counter for Strateole 2
 
@@ -15,8 +15,7 @@ the build environment.
 The original checkin was 22-Aug-2019. A bit of code devlopment continued
 after that, but was not submitted to the repo. The repo was
 updated with those modifications on 01-Jun-2024. The repo was then
-forked and renamed to MisterMartin/StratoCore_LPC. Eventually
-it will be transferred back to kalnajslab/.*
+forked and transferred to kalnajslab-org/StratoCore_LPC.s*
 
 
 ## 1. Installation
@@ -37,10 +36,11 @@ Cloned from GitHub:
 
 ```sh
 cd Documents/arduino/libraries # Or wherever your Arduino libraries are
-git clone https://github.com/MisterMartin/StratoCore_LPC   # Mainboard application
-git clone https://github.com/MisterMartin/StratoCore       # StratoCore framework
-git clone https://github.com/MisterMartin/StrateoleXML     # Strateole message parsing and comms support
-git clone https://github.com/MisterMartin/RS41             # RS41 support library
+git clone https://github.com/kalnajslab-org/StratoCore_LPC   # Mainboard application
+git clone https://github.com/kalnajslab-org/StratoCore       # StratoCore framework
+git clone https://github.com/kalnajslab-org/StrateoleXML     # Strateole message parsing 
+                                                             # and comms support
+git clone https://github.com/kalnajslab-org/RS41             # RS41 support library
 
 ```
 
