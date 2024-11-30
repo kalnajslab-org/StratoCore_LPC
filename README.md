@@ -20,24 +20,32 @@ campaign. After the Kiruna campaign MisterMartin/LPC was transferred
 to kalnajslab-org/LPC. It was finally renamed kalnajslab-org/StratoCore_LPC.*
 
 
-## 1. Installation
+## Installation
 
 There are 3 steps for configuring the development environment:
   1. Install Teensyduino (v1.59.0 or later).
   1. Clone the relevant LPC Arduino code repositories.
   1. Install Arduino libraries.
 
-### 2. Teensyduino
+***Setting up the ArduinoIDE***: The Arduino file system organization
+can be maddening. Here is what works well for our process:
+  - Create a directory for what the ArduinoIDE calls your *Sketchbook location*. 
+    It's likely that you already have one named *~/Documents/Arduino*. Create
+    a *libraries/* directory below this.
+  - Run the ArduinoIDE, and open *Settings*, and set the *Sketchbook location*.
+
+### 1. Teensyduino
 
 See the download and installation instructions for 
 <a href="https://www.pjrc.com/teensy/td_download.html" target="_blank">Teensyduino</a>.
 
-### 3. LPC Arduino code repositories
+### 2. StratoCore_LPC Arduino code repositories
 
 Cloned from GitHub:
 
 ```sh
-cd Documents/arduino/libraries # Or wherever your Arduino libraries are
+cd ~/Documents/Arduino/libraries                             # Or wherever your Arduino sketchbook  
+                                                             # libraries/ is
 git clone https://github.com/kalnajslab-org/StratoCore_LPC   # Mainboard application
 git clone https://github.com/kalnajslab-org/StratoCore       # StratoCore framework
 git clone https://github.com/kalnajslab-org/StrateoleXML     # Strateole message parsing 
@@ -46,7 +54,7 @@ git clone https://github.com/kalnajslab-org/RS41             # RS41 support libr
 
 ```
 
-### Arduino libraries
+### 3. Arduino libraries
 
 LPC uses one standard library, and several others which are either not
 visible to the the Arduino IDE library manager, or are hard to find
@@ -54,12 +62,11 @@ on the Internet. We have captured zip files of these latter ones, so that
 we can preserve them, and freeze the versions. These zip files are
 saved in `StratoCore_LPC/zips`.
 
-- Using the Arduino IDE library manager, find and install `TinyGPSPlus`
+- Using the Arduino IDE library manager, find and install `TinyGPSPlus by Mikal Hart`
 
-- Install our currated libraries, by unzipping the .zip files
-  located in `StratoCore_LPC/zips/` into `Documents/arduino/libraries/`.
-  This can be done manually, or by using the Arduino IDE library manager
-  to install a .zip file.
+- Install our currated zip libraries, by using the ArduinoIDE to install
+  them. This function is not in the library manager, but rather found
+  in *Sketch->Include library->Add .ZIP library...*.
 
 Note that the zipped libraries won't appear in the Arduino IDE library
 listing. It might be because they weren't installed from web
