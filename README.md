@@ -11,11 +11,13 @@ code, including the main board program, in the same `libraries/`
 directory where the Arduino IDE keeps its libraries. This will simplify
 the build environment.
 
-*Note: The original repository was kalnajslab/LPC. 
-The original checkin was 22-Aug-2019. A bit of code devlopment continued
+*Note: The original GitHub repository was kalnajslab/LPC. 
+The original checkin was 22-Aug-2019. A bit of code development continued
 after that, but was not submitted to the repo. The repo was
-updated with those modifications on 01-Jun-2024. The repo was then
-forked and transferred to kalnajslab-org/StratoCore_LPC.s*
+updated with those modifications on 01-Jun-2024. The repo was 
+forked to MisterMartin/LPC for the development work prior to the Kiruna
+campaign. After the Kiruna campaign MisterMartin/LPC was transferred 
+to kalnajslab-org/LPC. It was finally renamed kalnajslab-org/StratoCore_LPC.*
 
 
 ## 1. Installation
