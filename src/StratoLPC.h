@@ -18,8 +18,15 @@
 //#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
 #include "RS41.h"
 
-// for testing purposes, use LPC
+// Select "Serial8" for standard Zephyr comms: field deployment or with the LV/CCMZ simulator.
 #define ZEPHYR_SERIAL   Serial8 // LPC - Teensy 4.1
+
+// Select "Serial" to route both Zephyr and StratoCore log messages to the Teensy programming port.
+// Allows for the use of our OBC_Simulator.
+// WARNING: DO NOT CHECK CODE INTO GIT WIH THIS OPTION SELECTED. 
+//          MAKE SURE THIS OPTION IS DISABLED FOR FLIGHT DEPLOYED FIRMWARE.
+//#define ZEPHYR_SERIAL   Serial // LPC - Teensy 4.1
+
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 4096
 

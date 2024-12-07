@@ -59,8 +59,10 @@ void setup()
   ZEPHYR_SERIAL.begin(115200);
 
   //Increase serial buffer sizes for Teensy 4.1
+#if ZEPHYR_SERIAL != Serial
   ZEPHYR_SERIAL.addMemoryForRead(&Zephyr_serial_RX_buffer, sizeof(Zephyr_serial_RX_buffer));
   ZEPHYR_SERIAL.addMemoryForWrite(&Zephyr_serial_TX_buffer, sizeof(Zephyr_serial_TX_buffer));
+#endif
   // Timer interrupt setup for main loop timing
   Timer1.initialize(100000); // 0.1 s
   Timer1.attachInterrupt(ControlLoopTimer);
