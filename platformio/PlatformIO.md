@@ -1,7 +1,7 @@
 # StratoCore Development Using PlatformIO
 
 ***This method of combining ArduinoIDE and PlatformIO has been obsoleted.
-   See the README for [kalnajslab-org](https://github.com/kalnajslab-org).
+   See the README for [kalnajslab-org](https://github.com/kalnajslab-org#teensy-firmware-quickstart).
    However, the method for installing PlatformIO in VSCode remains the same (below).***
 
 You can have it both ways! 
