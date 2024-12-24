@@ -20,7 +20,11 @@
 
 // WARNING: DO NOT CHECK CODE INTO GIT WIH THIS OPTION ENABLED. 
 //          MAKE SURE THIS OPTION IS DISABLED FOR FLIGHT DEPLOYED FIRMWARE.
-#define ZEPHYR_COMMS_ON_DEBUG_PORT 0
+#define ZEPHYR_COMMS_ON_DEBUG_PORT false
+
+/// Schedule the OPC for immediate start after entering flight mode,
+/// rather than waiting for the hour.
+#define OPC_IMMEDIATE_START false
 
 #if not ZEPHYR_COMMS_ON_DEBUG_PORT
 #define ZEPHYR_SERIAL   Serial8
@@ -32,10 +36,6 @@
 
 #define INSTRUMENT      LPC
 #define ZEPHYR_SERIAL_BUFFER_SIZE 4096
-
-/// Schedule the OPC for immediate start after entering flight mode,
-/// rather than waiting for the hour.
-#define OPC_IMMEDIATE_START false
 
 // RS41 options
 /// Print RS41 samples to the console.

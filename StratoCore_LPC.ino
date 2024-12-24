@@ -51,20 +51,18 @@ void WaitForControlTimer(void) {
 void setup()
 {
   Serial.begin(115200);
-  Serial.print("StratoCore_LPC build ");
-  Serial.print(__DATE__);
-  Serial.print(" ");
-  Serial.println(__TIME__);
+  Serial.println(String("StratoCore_LPC build ") + __DATE__ + " " + __TIME__);
 
   ZEPHYR_SERIAL.begin(115200);
 
-#if (ZEPHYR_COMMS_ON_DEBUG_PORT)
-    log_error("Configured for sending Zephyr msgs to debug port\n**** WILL NOT WORK FOR FLIGHT OPERATIONS!");
-#else
-    //Increase serial buffer sizes for Teensy 4.1
+#if not ZEPHYR_COMMS_ON_DEBUG_PORT
+    // Zephyr serial is on digital I/O pins
     ZEPHYR_SERIAL.addMemoryForRead(&Zephyr_serial_RX_buffer, sizeof(Zephyr_serial_RX_buffer));
     ZEPHYR_SERIAL.addMemoryForWrite(&Zephyr_serial_TX_buffer, sizeof(Zephyr_serial_TX_buffer));
     log_nominal("Configured for standard Zephyr port");
+#else
+    // Zephyr serial is on USB so buffer doesn't need to be increased
+    log_error("Configured for sending Zephyr msgs to debug port\n**** WILL NOT WORK FOR FLIGHT OPERATIONS!");
 #endif
 
   // Timer interrupt setup for main loop timing
