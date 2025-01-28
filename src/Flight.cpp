@@ -74,6 +74,27 @@ void StratoLPC::FlightMode()
             Serial.print("StartTimeSeconds Updated to: ");
             Serial.println(StartTimeSeconds);
             digitalWrite(PHA_POWER, HIGH); //turn on the optical head
+            if( OPC.MeasureLTC2983(4) < PumpMinTemp || OPC.MeasureLTC2983(5) < PumpMinTemp) //check pumps are above min temp
+            {
+                ZephyrLogWarn("Pump Temp too low");
+                Serial.println("Shutting down LPC");
+                LPC_Shutdown();
+                Serial.print("Last Measurement at: ");
+                Serial.println(StartTimeSeconds);
+                TimeElements nextMeasurement;
+                breakTime(StartTimeSeconds + (time_t)Set_cycleTime * 60l,nextMeasurement);
+                scheduler.AddAction(START_WARMUP, nextMeasurement);
+                Serial.print("Next Measurement schedueled for: ");
+                Serial.print(nextMeasurement.Hour);
+                Serial.print(":");
+                Serial.print(nextMeasurement.Minute);
+                Serial.print(":");
+                Serial.println(nextMeasurement.Second);
+                inst_substate = FL_IDLE;
+                log_nominal("Entering FL_IDLE");
+                break;
+            }
+        
             TempLaser = OPC.MeasureLTC2983(8);  // Laser temp on Ch 8: Thermistor 44006 10K@25C
             if ((TempLaser > -200) && (TempLaser < Set_LaserTemp))
                 digitalWrite(HEATER1, HIGH);  //Laser heater on heater channel 1
