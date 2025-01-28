@@ -74,7 +74,7 @@ void StratoLPC::FlightMode()
             Serial.print("StartTimeSeconds Updated to: ");
             Serial.println(StartTimeSeconds);
             digitalWrite(PHA_POWER, HIGH); //turn on the optical head
-            if( OPC.MeasureLTC2983(4) < PumpMinTemp || OPC.MeasureLTC2983(5) < PumpMinTemp) //check pumps are above min temp
+            if( OPC.MeasureLTC2983(4) < PumpMinTemp || OPC.MeasureLTC2983(6) < PumpMinTemp) //check pumps are above min temp
             {
                 ZephyrLogWarn("Pump Temp too low");
                 Serial.println("Shutting down LPC");
