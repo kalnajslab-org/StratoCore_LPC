@@ -179,6 +179,7 @@ private:
     uint16_t Set_phaLoGainOffset;      // PHA low gain baseline offset
     bool Set_triggerPHAconfig = false; // Trigger the PHA configuration, which happens during FL_WARMUP
     bool Set_rs41regen = false;        // Initiate an RS41 regeneration
+    float PumpMinTemp = -20.0;          // Minimum temperature for the pumps to operate
     /* These should be set for each instrument */
     /*These are for LPC 0007*/
     int Set_HGBinBoundaries[17] = {0,6,13,19,25,31,37,48,59,69,78,87,95,102,109,120,129}; // 16 high gain bins

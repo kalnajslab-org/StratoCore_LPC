@@ -100,6 +100,13 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
         Set_rs41regen = true;
         ZephyrLogFine("TC: RS41 regen requested");
         break;
+    case SETFLOW:
+        BEMF1_SP = lpcParam.flowSetpoint;
+        BEMF2_SP = lpcParam.flowSetpoint;
+        break;
+    case SETPUMPTEMP:
+        PumpMinTemp = lpcParam.pumpMinTemp;
+        break;
     default:
         ZephyrLogWarn("Unknown TC received");
         break;
@@ -342,7 +349,6 @@ float StratoLPC::getFlow()
     digital_output=aa<<8;
     digital_output=digital_output+bb; //Combine bytes into an integer
     flow = 20.0*((digital_output/16383.0)-0.1)/0.8; //Convert digital output into correct air flow
-    
     //Return correct value
     return flow;
 }
