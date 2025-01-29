@@ -18,15 +18,11 @@
 //#include "LPCBufferGuard.h"   //this is not needed for Teensy 4.1 as buffer size is set in user code
 #include "RS41.h"
 
-// WARNING: DO NOT CHECK CODE INTO GIT WIH THIS OPTION ENABLED. 
-//          MAKE SURE THIS OPTION IS DISABLED FOR FLIGHT DEPLOYED FIRMWARE.
-#define ZEPHYR_COMMS_ON_DEBUG_PORT false
-
 /// Schedule the OPC for immediate start after entering flight mode,
 /// rather than waiting for the hour.
 #define OPC_IMMEDIATE_START false
 
-#if not ZEPHYR_COMMS_ON_DEBUG_PORT
+#ifndef LOG_ZEPHYR_COMMS_SHARED
 #define ZEPHYR_SERIAL   Serial8
 #else
 // This allows for use of the OBD_Simulator with just the Teensy programming port, 
