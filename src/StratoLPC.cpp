@@ -103,9 +103,11 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
     case SETFLOW:
         BEMF1_SP = lpcParam.flowSetpoint;
         BEMF2_SP = lpcParam.flowSetpoint;
+        ZephyrLogFine((String("TC: Updated BEMF Flow Setpoint to: ") + String(BEMF1_SP)).c_str());
         break;
     case SETPUMPTEMP:
         PumpMinTemp = lpcParam.pumpMinTemp;
+        ZephyrLogFine((String("TC: Updated Pump Min Temp to: ") + String(PumpMinTemp)).c_str());
         break;
     default:
         ZephyrLogWarn("Unknown TC received");

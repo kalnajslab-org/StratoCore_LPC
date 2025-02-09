@@ -168,9 +168,9 @@ private:
 
     // Global variables used by LPC
     /* Variables with initial values that can be configured via telecommand */
-    int Set_numberSamples = 80;        // Number of samples to collect for each measurement
+    int Set_numberSamples = 60;        // Number of samples to collect for each measurement
     int Set_samplesToAverage = 1;      // Number of 2 second PHA packets to avergae per sample
-    int Set_cycleTime = 10;            // Time between measurements in minutes
+    int Set_cycleTime = 15;            // Time between measurements in minutes
     int Set_warmUpTime = 10;           // Warm up time in seconds
     int Set_LaserTemp = -30;           // Target Laser Temperature
     int Set_FlushingTime = 10;         // Flushing Time in seconds
@@ -228,8 +228,8 @@ private:
     float error1 = 0.0;
     float error2 = 0.0;
     float Kp = 30.0;
-    int BEMF1_pwm = 128;
-    int BEMF2_pwm = 128;
+    int BEMF1_pwm = 64;
+    int BEMF2_pwm = 64;
     
     /*PHA HK Variables*/
     long PHA_TimeStamp = 0;
