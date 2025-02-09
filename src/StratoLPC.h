@@ -20,7 +20,7 @@
 
 /// Schedule the OPC for immediate start after entering flight mode,
 /// rather than waiting for the hour.
-#define OPC_IMMEDIATE_START false
+#define OPC_IMMEDIATE_START true
 
 #ifndef LOG_ZEPHYR_COMMS_SHARED
 #define ZEPHYR_SERIAL   Serial8
