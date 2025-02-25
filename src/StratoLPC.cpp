@@ -17,7 +17,7 @@
 StratoLPC::StratoLPC()
     : StratoCore(&ZEPHYR_SERIAL, INSTRUMENT),
     OPC(13),
-    _rs41(Serial7)
+    _rs41(Serial7, RS41_ENB_PIN)
 {
 }
 

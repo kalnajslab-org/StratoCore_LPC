@@ -34,6 +34,8 @@
 #define ZEPHYR_SERIAL_BUFFER_SIZE 4096
 
 // RS41 options
+/// The RS41 enable pin
+#define RS41_ENB_PIN 32
 /// Print RS41 samples to the console.
 #define RS41_DEBUG_PRINT false
 /// How often to sample the RS41 during flight mode.
