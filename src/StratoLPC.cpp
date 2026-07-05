@@ -868,18 +868,18 @@ String StratoLPC::rs41CsvData( RS41::RS41SensorData_t &rs41_data) {
         String(rs41_data.pcb_supply_V) + comma +
         String(rs41_data.lsm303_temp_degC) + comma +
         String(rs41_data.pcb_heater_on) + comma +
-        String(rs41_data.mag_hdgXY_deg) + comma +
-        String(rs41_data.mag_hdgXZ_deg) + comma +
-        String(rs41_data.mag_hdgYZ_deg) + comma +
-        String(rs41_data.accelX_mG) + comma +
-        String(rs41_data.accelY_mG) + comma +
-        String(rs41_data.accelZ_mG);
+        String(rs41_data.magX_mG) + comma +
+        String(rs41_data.magY_mG) + comma +
+        String(rs41_data.magZ_mG) + comma +
+        String(rs41_data.accelX_mg) + comma +
+        String(rs41_data.accelY_mg) + comma +
+        String(rs41_data.accelZ_mg);
 
     return csv_str;
 }
 
 String StratoLPC::rs41CsvHeader() {
-    return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,mag_hdgXY_deg,mag_hdgXZ_deg,mag_hdgYZ_deg,accelX_mG,accelY_mG,accelZ_mG");
+    return String("Time,valid,frame_count,air_temp_degC,humdity_percent,hsensor_temp_degC,pres_mb,internal_temp_degC,module_status,module_error,pcb_supply_V,lsm303_temp_degC,pcb_heater_on,magX_mG,magY_mG,magZ_mG,accelX_mg,accelY_mg,accelZ_mg");
 }
 
 void StratoLPC::rs41PrintCsv( RS41::RS41SensorData_t &rs41_data) {
