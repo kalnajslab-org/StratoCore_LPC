@@ -706,6 +706,25 @@ void StratoLPC::rs41Action() {
         _rs41_samples[_n_rs41_samples].tsensor = (rs41_data.hsensor_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
+        // Heading: (hdg / 360.0) * 255.0, clamped to 0-255 (same scaling as the RPU)
+        if (rs41_data.heading_deg < 0.0) {
+            _rs41_samples[_n_rs41_samples].heading = 0;
+        } else if (rs41_data.heading_deg > 360.0) {
+            _rs41_samples[_n_rs41_samples].heading = 255;
+        } else {
+            _rs41_samples[_n_rs41_samples].heading = (rs41_data.heading_deg / 360.0) * 255.0;
+        }
+        // Status: 8 flag bits packed into one byte (same layout as the RPU)
+        const RS41::RS41StatusFlags_t& rs41_flags = rs41_data.flags;
+        _rs41_samples[_n_rs41_samples].status =
+              (rs41_flags.high_internal_temp ? RS41_STATUS_HIGH_INTERNAL_TEMP : 0u)
+            | (rs41_flags.regen_temp_low     ? RS41_STATUS_REGEN_TEMP_LOW     : 0u)
+            | (rs41_flags.ptu_failure        ? RS41_STATUS_PTU_FAILURE        : 0u)
+            | (rs41_flags.flash_failure      ? RS41_STATUS_FLASH_FAILURE      : 0u)
+            | (rs41_flags.low_input_voltage  ? RS41_STATUS_LOW_INPUT_VOLTAGE  : 0u)
+            | (rs41_flags.not_calibrated     ? RS41_STATUS_NOT_CALIBRATED     : 0u)
+            | (rs41_flags.no_pressure_module ? RS41_STATUS_NO_PRESSURE_MODULE : 0u)
+            | (rs41_flags.disconnected_boom  ? RS41_STATUS_DISCONNECTED_BOOM  : 0u);
         _n_rs41_samples++;
 
         if (_n_rs41_samples == RS41_N_SAMPLES_TO_REPORT) {
@@ -739,9 +758,11 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
     sizeof(rs41_sample_array[0].secs) + 
     sizeof(rs41_sample_array[0].tdry) + 
     sizeof(rs41_sample_array[0].humidity) + 
-     sizeof(rs41_sample_array[0].tsensor) + 
-    sizeof(rs41_sample_array[0].pres) + 
-    sizeof(rs41_sample_array[0].error); 
+     sizeof(rs41_sample_array[0].tsensor) +
+    sizeof(rs41_sample_array[0].pres) +
+    sizeof(rs41_sample_array[0].error) +
+    sizeof(rs41_sample_array[0].heading) +
+    sizeof(rs41_sample_array[0].status);
 
     String Message = "";
 
@@ -802,6 +823,8 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
             zephyrTX.addTm(rs41_sample_array[i].tsensor);
             zephyrTX.addTm(rs41_sample_array[i].pres);
             zephyrTX.addTm(rs41_sample_array[i].error);
+            zephyrTX.addTm(rs41_sample_array[i].heading);
+            zephyrTX.addTm(rs41_sample_array[i].status);
     }
 
     Serial.print("Sending RS41 samples: ");

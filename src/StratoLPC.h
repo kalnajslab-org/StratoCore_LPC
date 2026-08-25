@@ -20,7 +20,7 @@
 
 /// Schedule the OPC for immediate start after entering flight mode,
 /// rather than waiting for the hour.
-#define OPC_IMMEDIATE_START false
+#define OPC_IMMEDIATE_START true
 
 #ifndef LOG_ZEPHYR_COMMS_SHARED
 #define ZEPHYR_SERIAL   Serial8
@@ -66,6 +66,17 @@ enum ScheduleAction_t : uint8_t {
     NUM_ACTIONS
 };
 
+// Bit definitions for the rs41TmSample_t status byte (matches
+// RS41::RS41StatusFlags_t field order, and the RPU's ECU_RS41_* bits).
+constexpr uint8_t RS41_STATUS_HIGH_INTERNAL_TEMP  = (1u << 0); // S.2: high internal temperature
+constexpr uint8_t RS41_STATUS_REGEN_TEMP_LOW      = (1u << 1); // S.3: regen temperature low
+constexpr uint8_t RS41_STATUS_PTU_FAILURE         = (1u << 2); // S.4: PTU failure
+constexpr uint8_t RS41_STATUS_FLASH_FAILURE       = (1u << 3); // S.5: flash failure
+constexpr uint8_t RS41_STATUS_LOW_INPUT_VOLTAGE   = (1u << 4); // E.6: low input voltage
+constexpr uint8_t RS41_STATUS_NOT_CALIBRATED      = (1u << 5); // E.7: not calibrated
+constexpr uint8_t RS41_STATUS_NO_PRESSURE_MODULE  = (1u << 6); // E.8: no pressure module
+constexpr uint8_t RS41_STATUS_DISCONNECTED_BOOM   = (1u << 7); // E.9: disconnected boom
+
 /// @brief The RS41 compressed sample for use in the RS41 TM message
 struct rs41TmSample_t {
     uint8_t valid;
@@ -75,6 +86,8 @@ struct rs41TmSample_t {
     uint16_t tsensor;
     uint16_t pres;
     uint16_t error;
+    uint8_t heading;    // (hdg / 360.0) * 255.0 (0-255 : 0 to 360 degrees), same scaling as the RPU
+    uint8_t status;     // RS41 status flags byte (8 flags packed as bits, see RS41_STATUS_*), same layout as the RPU
 };
 
 class StratoLPC : public StratoCore {
