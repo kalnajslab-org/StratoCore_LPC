@@ -355,6 +355,68 @@ float StratoLPC::getFlow()
     return flow;
 }
 
+void StratoLPC::resetFlowMeter()
+{
+    /*
+     * The flow meter (Honeywell Zephyr HAF series) shares its power supply with
+     * the PHA and has no dedicated power-control pin on this board rev, so it
+     * can't be truly power-cycled from here. Instead, send its PowerOnReset user
+     * command (0x02 -- "Force Power-On reset of sensor microcontroller", 20 ms
+     * max command response time per the HAF Series datasheet, Table 8) over I2C.
+     */
+    Wire.beginTransmission(sensor);
+    Wire.write(0x02); //PowerOnReset command
+    Wire.endTransmission();
+
+    // Give the sensor time to complete the reset and its power-up warm-up
+    // (20 ms max command response + ~35 ms typical warm-up time per the
+    // datasheet) before talking to it again.
+    delay(100);
+
+    // Per the datasheet's I2C start-up sequence (Table 1), the first two reads
+    // after a power-up/reset return the sensor's Serial Number registers, not a
+    // flow reading -- discard them here so the next getFlow() call is guaranteed
+    // to read real flow data, not a serial-number word misread as a flow value.
+    byte aa, bb;
+    for (int i = 0; i < 2; i++)
+    {
+        Wire.requestFrom(sensor, 2);
+        aa = Wire.read();
+        bb = Wire.read();
+    }
+}
+
+void StratoLPC::checkAndResetFlowMeter()
+{
+    /*
+     * The flow meter occasionally latches onto a fixed, erroneous reading of
+     * ~39.168 LPM (true flow during flush/measurement is ~8-10 LPM). If we see
+     * a reading above FLOW_SENSOR_FAULT_THRESHOLD, try to recover it by
+     * resetting it, rechecking in between, up to FLOW_SENSOR_RESET_ATTEMPTS times.
+     */
+    Flow = getFlow();
+
+    if (Flow <= FLOW_SENSOR_FAULT_THRESHOLD)
+        return;
+
+    log_error("Flow meter reporting erroneous flow, attempting reset");
+    ZephyrLogWarn("Flow meter erroneous, resetting");
+
+    for (int attempt = 0; attempt < FLOW_SENSOR_RESET_ATTEMPTS; attempt++)
+    {
+        resetFlowMeter();
+        Flow = getFlow();
+        if (Flow <= FLOW_SENSOR_FAULT_THRESHOLD)
+        {
+            log_nominal("Flow meter reset recovered a valid reading");
+            return;
+        }
+    }
+
+    log_error("Flow meter still erroneous after reset attempts");
+    ZephyrLogWarn("Flow meter reset attempts failed");
+}
+
 int StratoLPC::parsePHA(int charsToParse) {
     /*This Function parses the char string from the PHA into two integer arrays containing
      * the PHA HG and LG arrays.  We can then down sample to 'bins'.
@@ -363,8 +425,16 @@ int StratoLPC::parsePHA(int charsToParse) {
     char * strtokIndx; // this is used by strtok() as an index
     int i;
     
-    memset(LGArray, -999, sizeof(LGArray)); //initialize int arays to -999 so we
-    memset(HGArray, -999, sizeof(HGArray)); //know if there are missing values.
+    // NOTE: memset() fills byte-by-byte, so memset(LGArray, -999, ...) does NOT set each
+    // int element to -999 -- it fills every byte with (uint8_t)-999 = 0x19, producing
+    // 0x19191919 (421,075,225) per element. That garbage value, left unfilled at index 0
+    // by a since-fixed off-by-one below, was truncating to 6425 when cast to uint16_t in
+    // fillBins() and corrupting the first size bin. Fill element-wise instead.
+    for (int k = 0; k < 256; k++)
+    {
+        LGArray[k] = -999; //initialize int arrays to -999 so we
+        HGArray[k] = -999; //know if there are missing values.
+    }
     
     //DEBUG_SERIAL.print("PHA Array as passed to parsePHA: ");
     //DEBUG_SERIAL.println(PHAArray);
@@ -378,8 +448,10 @@ int StratoLPC::parsePHA(int charsToParse) {
     strtokIndx = strtok(NULL, ",");
     PHA_PulseCount = atol(strtokIndx);
    
-    //Get the next 255 fields as HG array
-    for(i = 255; i > 0; i--)
+    //Get the next 256 fields as HG array (PHA sends Small_Array[0..255] ascending;
+    //stored here in reverse, HGArray[255-n] = Small_Array[n], so that increasing
+    //HGArray index corresponds to increasing particle size, matching Set_HGBinBoundaries)
+    for(i = 255; i >= 0; i--)
     {
         strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
         if(strtokIndx != NULL)         //if we find a filed
@@ -389,9 +461,9 @@ int StratoLPC::parsePHA(int charsToParse) {
         else
             return -1;
     }
-   
-    //Get the next 255 fields as LG array
-    for(i = 255; i > 0; i--)
+
+    //Get the next 256 fields as LG array (same reversal as HG array above)
+    for(i = 255; i >= 0; i--)
     {
         strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
         if(strtokIndx != NULL)          //if we find a filed
@@ -405,12 +477,28 @@ int StratoLPC::parsePHA(int charsToParse) {
     
 }
 
+// Print one bin array to DEBUG_SERIAL as a single tagged CSV line, e.g.:
+//   HGBINS,3,120,340,455,...
+// so a Python script can identify and parse it with:
+//   tag, record, *bins = line.strip().split(",")
+static void printBinsCSV(const char* tag, int record, int* bins, int numBins)
+{
+    DEBUG_SERIAL.print(tag);
+    DEBUG_SERIAL.print(",");
+    DEBUG_SERIAL.print(record);
+    for (int i = 0; i < numBins; i++)
+    {
+        DEBUG_SERIAL.print(",");
+        DEBUG_SERIAL.print(bins[i]);
+    }
+    DEBUG_SERIAL.println();
+}
+
 void StratoLPC::fillBins(int record, int SamplesToCoAdd)
 {
     int m = 0;
     int n = 0;
-    
-    // DEBUG_SERIAL.print("High Gain Bins: ");
+
     for(m = 0; m < NumberHGBins; m++)
     {
         HGBins[m] = 0;
@@ -418,11 +506,8 @@ void StratoLPC::fillBins(int record, int SamplesToCoAdd)
         {
             HGBins[m] += HGArray[n];
         }
-        //DEBUG_SERIAL.print(HGBins[m]), DEBUG_SERIAL.print(", ");
     }
-    //DEBUG_SERIAL.println();
-    //DEBUG_SERIAL.print("Low Gain Bins: ");
-    
+
     for(m = 0; m < NumberLGBins; m++)
     {
         LGBins[m] = 0;
@@ -430,10 +515,18 @@ void StratoLPC::fillBins(int record, int SamplesToCoAdd)
         {
             LGBins[m] += LGArray[n];
         }
-        //DEBUG_SERIAL.print(LGBins[m]), DEBUG_SERIAL.print(", ");
     }
-    //DEBUG_SERIAL.println();
-    
+
+    // Debug output for offline analysis: one CSV line per array, tagged so a
+    // Python script can pick it out of the console log regardless of what else
+    // is being printed, e.g.:
+    //   for line in serial_port:
+    //       if line.startswith("HGBINS,") or line.startswith("LGBINS,"):
+    //           tag, record, *bins = line.strip().split(",")
+    //           bins = [int(b) for b in bins]
+    printBinsCSV("HGBINS", record, HGBins, NumberHGBins);
+    printBinsCSV("LGBINS", record, LGBins, NumberLGBins);
+
     for(m = 0; m < 16; m++)
     {
         BinData[m][record/SamplesToCoAdd] += (uint16_t) HGBins[m];

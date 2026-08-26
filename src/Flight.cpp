@@ -127,13 +127,23 @@ void StratoLPC::FlightMode()
             phaConfig();
             scheduler.AddAction(START_MEASUREMENT, Set_FlushingTime);
             inst_substate = FL_FLUSH;
+            FlowMeterCheckDone = false; // allow one flow meter check/reset for this flush cycle
             log_nominal("Entering FL_FLUSH");
-            
+
         }
         log_debug("FL Warmup");
         break;
-    
+
     case FL_FLUSH:
+
+        // The flow meter occasionally reports a fixed, erroneous ~39.168 LPM
+        // (true flow is ~8-10 LPM). Check once per flush cycle and, if seen,
+        // attempt to reset the sensor to recover a valid reading.
+        if (!FlowMeterCheckDone)
+        {
+            checkAndResetFlowMeter();
+            FlowMeterCheckDone = true;
+        }
 
         if (CheckAction(START_MEASUREMENT))
         {

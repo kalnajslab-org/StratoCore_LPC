@@ -50,6 +50,12 @@
 // hardcoded limits for LPC
 #define T_PUMP_SHUTDOWN 75.0 // Max operating temperature for rotary vane pump
 
+// The mass flow meter has a known failure mode where it latches onto a fixed,
+// erroneous reading of ~39.168 LPM (real flow is ~8-10 LPM). Above this threshold
+// we assume the reading is bad and attempt to recover the sensor.
+#define FLOW_SENSOR_FAULT_THRESHOLD 30.0 // LPM
+#define FLOW_SENSOR_RESET_ATTEMPTS  2
+
 #define PHA_BUFFER_SIZE 4096
 
 // todo: perhaps more creative/useful enum here by mode with separate arrays?
@@ -117,6 +123,14 @@ private:
     void CheckTemps();
     void AdjustPumps();
     float getFlow();
+    /// @brief Check the flow meter, and if it's reporting a fault value
+    /// (> FLOW_SENSOR_FAULT_THRESHOLD LPM), attempt to recover it by sending
+    /// its power-on-reset command over I2C, up to FLOW_SENSOR_RESET_ATTEMPTS times.
+    void checkAndResetFlowMeter();
+    /// @brief Send the flow meter's power-on-reset command over I2C.
+    /// The sensor shares its power supply with the PHA and has no dedicated
+    /// power-control pin, so it can't be truly power-cycled from here.
+    void resetFlowMeter();
     int parsePHA(int);
     void fillBins(int,int);
     void PackageTelemetry(int);
@@ -197,7 +211,7 @@ private:
     float PumpMinTemp = -20.0;          // Minimum temperature for the pumps to operate
     /* These should be set for each instrument */
     /*These are for LPC 0007*/
-    int Set_HGBinBoundaries[17] = {0,6,13,19,25,31,37,48,59,69,78,87,95,102,109,120,129}; // 16 high gain bins
+    int Set_HGBinBoundaries[17] = {1,6,13,19,25,31,37,48,59,69,78,87,95,102,109,120,129}; // 16 high gain bins
     int Set_LGBinBoundaries[17] = {26,32,36,40,44,48,57,65,73,81,111,143,187,210,230,255,255}; //16 Low gain bins
     
     
@@ -255,6 +269,10 @@ private:
     
     String StringBins = "";
     float DeadBand = 0.5;
+
+    // Set true once checkAndResetFlowMeter() has run for the current FL_FLUSH
+    // cycle, so the check/reset only happens once per flush rather than every loop.
+    bool FlowMeterCheckDone = false;
     
     int Frame = 0;
     char inByte;
