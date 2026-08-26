@@ -154,6 +154,7 @@ void StratoLPC::FlightMode()
             OPCSERIAL.flush();
             log_nominal("Entering FL_MEASURE");
             MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
+            LastPHAActivityMillis = millis(); //start the PHA-silence watchdog fresh for this measurement
 
         }
         log_debug("FL Flush");
@@ -163,6 +164,7 @@ void StratoLPC::FlightMode()
                     
         if(OPCSERIAL.available())
         {
+            LastPHAActivityMillis = millis(); //the PHA is alive; reset the silence watchdog
             inByte = 0;
             int indx = 0;
             unsigned long TimeOut = millis() + 1000; //set a timeout just in case
@@ -232,13 +234,25 @@ void StratoLPC::FlightMode()
             log_nominal("Entering FL_SEND_TELEMETRY");
 
         }
-        if(ErrorCount > 100)
+        else if(ErrorCount > 100)
         {
             ZephyrLogCrit("Measurment errored out");
             ErrorCount = 0;
             inst_substate = FL_ERROR;
         }
-        
+        else if((millis() - LastPHAActivityMillis) > PHA_SILENCE_TIMEOUT_MS)
+        {
+            // Total silence from the PHA (as opposed to a partial/garbled line)
+            // never increments Frame or ErrorCount, since both only change
+            // inside the OPCSERIAL.available() block above -- without this
+            // watchdog, FL_MEASURE (and the pumps it left running) would be
+            // stuck here indefinitely.
+            ZephyrLogCrit("PHA silent: no data received, aborting measurement");
+            log_error("PHA silent: no data received, aborting measurement");
+            ErrorCount = 0;
+            inst_substate = FL_ERROR;
+        }
+
         log_debug("FL Measure");
         break;
             

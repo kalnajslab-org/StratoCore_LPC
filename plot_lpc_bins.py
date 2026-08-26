@@ -2,7 +2,7 @@
 """
 plot_lpc_bins.py
 
-Live-plots LPC/PHA bin data from a serial console or a saved log file. Three
+Live-plots LPC/PHA bin data from a serial console or a saved log file. Four
 line formats are recognized on the same stream, auto-detected line by line:
 
 1. StratoLPC's 16 size bins, printed once per sample frame by
@@ -10,6 +10,11 @@ line formats are recognized on the same stream, auto-detected line by line:
    LPC main board's DEBUG_SERIAL console:
        HGBINS,<record>,<bin0>,<bin1>,...,<bin15>
        LGBINS,<record>,<bin0>,<bin1>,...,<bin15>
+
+   The same 16 size bins may also show up in the older, plain-text debug
+   format (no record number) some builds of fillBins() still print instead:
+       High Gain Bins: <bin0>, <bin1>, ..., <bin15>,
+       Low Gain Bins: <bin0>, <bin1>, ..., <bin15>,
 
 2. The PHA's raw 256-element downsampled pulse-height spectra, printed to its
    own USB DEBUG_SERIAL console (PlatformIO PHA_V5_1.ino, V5.1a+) once per
@@ -69,6 +74,31 @@ def parse_size_bins_line(line, tag):
     except (ValueError, IndexError):
         return None
     return record, bins
+
+
+def parse_labeled_bins_line(line, label):
+    """
+    Return [bin counts] for a plain labeled debug line of the form:
+        <label>: b0, b1, b2, ...,
+    e.g. StratoLPC.cpp's legacy fillBins() debug prints:
+        High Gain Bins: 0, 5481, 3037, ...,
+        Low Gain Bins: 72, 30, 21, ...,
+    or None if it doesn't match. There's no record/frame number on this line,
+    unlike the tagged 'HGBINS,<record>,...' CSV format.
+    """
+    line = line.strip()
+    prefix = label + ":"
+    if not line.startswith(prefix):
+        return None
+    rest = line[len(prefix):].strip()
+    if not rest:
+        return None
+    parts = [p.strip() for p in rest.split(",") if p.strip() != ""]
+    try:
+        values = [int(x) for x in parts]
+    except ValueError:
+        return None
+    return values or None
 
 
 def parse_pha_line(line):
@@ -159,6 +189,10 @@ class BinPlotter:
         self.lg_bins = [0] * N_SIZE_BINS
         self.hg_record = None
         self.lg_record = None
+        # fallback frame counters, used when a line format doesn't carry its own
+        # record number (e.g. the legacy 'High Gain Bins: ...' text format)
+        self.hg_frame_count = 0
+        self.lg_frame_count = 0
         self.hg_bars = self.ax_hg.bar(range(N_SIZE_BINS), self.hg_bins, color="tab:blue")
         self.lg_bars = self.ax_lg.bar(range(N_SIZE_BINS), self.lg_bins, color="tab:orange")
         self.hg_peak_annotation = None
@@ -167,6 +201,8 @@ class BinPlotter:
             ax.set_title(title)
             ax.set_xlabel("Size bin")
             ax.set_ylabel("Counts")
+            ax.set_ylim(0.5, 10)  # placeholder range so switching to log scale below has something positive to work with
+            ax.set_yscale("log")
 
         # PHA raw spectra: created lazily once we know how many elements they have
         self.pha_hg_line = None
@@ -183,9 +219,13 @@ class BinPlotter:
 
     def update_size_bins(self, tag, record, bins):
         if tag == "HGBINS":
+            self.hg_frame_count += 1
+            record = record if record is not None else self.hg_frame_count
             self.hg_record, self.hg_bins = record, bins
             bars, ax, label, peak_attr = self.hg_bars, self.ax_hg, "StratoLPC High Gain Size Bins", "hg_peak_annotation"
         else:
+            self.lg_frame_count += 1
+            record = record if record is not None else self.lg_frame_count
             self.lg_record, self.lg_bins = record, bins
             bars, ax, label, peak_attr = self.lg_bars, self.ax_lg, "StratoLPC Low Gain Size Bins", "lg_peak_annotation"
 
@@ -195,8 +235,10 @@ class BinPlotter:
 
         for bar, value in zip(bars, bins):
             bar.set_height(value)
-        ax.set_ylim(0, max(bins + [1]) * 1.1)
-        ax.set_title(f"{label} (record {record})")
+        # log scale can't show 0, so give it a small positive floor; zero-count
+        # bins just render as a sliver at the bottom, which is fine
+        ax.set_ylim(0.5, max(bins + [1]) * 2)
+        ax.set_title(f"{label}, total counts: {sum(bins)} (frame {record})")
 
         self._update_peak_label(ax, xs, bins, original_indices, peak_attr)
         self._flush()
@@ -298,6 +340,8 @@ def main():
         for line in make_line_source(args):
             hg_result = parse_size_bins_line(line, "HGBINS")
             lg_result = parse_size_bins_line(line, "LGBINS")
+            hg_labeled = parse_labeled_bins_line(line, "High Gain Bins")
+            lg_labeled = parse_labeled_bins_line(line, "Low Gain Bins")
             pha_result = parse_pha_line(line)
             pha_hg_debug = parse_pha_debug_array_line(line, "HG_Small_Array")
             pha_lg_debug = parse_pha_debug_array_line(line, "LG_Small_Array")
@@ -306,6 +350,10 @@ def main():
                 plotter.update_size_bins("HGBINS", *hg_result)
             elif lg_result is not None:
                 plotter.update_size_bins("LGBINS", *lg_result)
+            elif hg_labeled is not None:
+                plotter.update_size_bins("HGBINS", None, hg_labeled)
+            elif lg_labeled is not None:
+                plotter.update_size_bins("LGBINS", None, lg_labeled)
             elif pha_result is not None:
                 plotter.update_pha(pha_result)
             elif pha_hg_debug is not None:

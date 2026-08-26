@@ -56,6 +56,15 @@
 #define FLOW_SENSOR_FAULT_THRESHOLD 30.0 // LPM
 #define FLOW_SENSOR_RESET_ATTEMPTS  2
 
+// Watchdog for FL_MEASURE: if the PHA goes completely silent (no bytes at all,
+// as opposed to a partial/garbled line, which ErrorCount already handles), the
+// only two exit conditions from FL_MEASURE (Frame >= Set_numberSamples and
+// ErrorCount > 100) can never become true, since both only ever change inside
+// the OPCSERIAL.available() gate. That leaves the pumps running indefinitely
+// with no further measurements ever taken. If we see no PHA activity at all
+// for this long, force the measurement to abort via FL_ERROR.
+#define PHA_SILENCE_TIMEOUT_MS (30UL * 1000UL)
+
 #define PHA_BUFFER_SIZE 4096
 
 // todo: perhaps more creative/useful enum here by mode with separate arrays?
@@ -224,7 +233,11 @@ private:
     TimeElements StartTime;
     time_t StartTimeSeconds;
     uint32_t MeasurementStartTime; //actually a time_t, set to uint32_t for overloaded TM function in XMLwriter
-    
+    // millis() timestamp of the last time any byte was seen from the PHA during
+    // FL_MEASURE; used by the PHA_SILENCE_TIMEOUT_MS watchdog to detect total
+    // silence from the PHA (see PHA_SILENCE_TIMEOUT_MS for why this is needed).
+    unsigned long LastPHAActivityMillis = 0;
+
     /*Global Variables */
     
     /*HK Variables */
@@ -233,7 +246,7 @@ private:
     float TempInlet;
     float TempLaser;
     float TempPCB;
-    float VBat;
+    float VBat = 16.0;  //initialize so BEMF control doesn't freak out on first loop
     float VTeensy;
     float VMotors;
     float Flow = 20000.0/30.0; //preset flow to default in case MFM doesn't work
@@ -256,9 +269,9 @@ private:
     float BEMF2_SP = 7.8; //Set point for large pumps
     float error1 = 0.0;
     float error2 = 0.0;
-    float Kp = 30.0;
-    int BEMF1_pwm = 64;
-    int BEMF2_pwm = 64;
+    float Kp = 10.0;
+    int BEMF1_pwm = 140;
+    int BEMF2_pwm = 140;
     
     /*PHA HK Variables*/
     long PHA_TimeStamp = 0;
