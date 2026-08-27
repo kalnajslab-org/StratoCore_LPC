@@ -127,6 +127,12 @@ private:
     //LPC Functions
     void LPC_Shutdown();
     TimeElements Get_Next_Hour();
+    /// @brief Log and schedule the next START_WARMUP action, Set_cycleTime
+    /// minutes after StartTimeSeconds (the start of the measurement just
+    /// finished/skipped). Does not change inst_substate or touch the pumps --
+    /// callers are expected to have already called LPC_Shutdown() and to set
+    /// inst_substate = FL_IDLE themselves.
+    void ScheduleNextMeasurement();
   //  time_t Next_Start_Time(time_t);
     void ReadHK(int);
     void CheckTemps();

@@ -178,6 +178,21 @@ void StratoLPC::LPC_Shutdown()
     digitalWrite(HEATER2, LOW); //Turn of unused heater
 }
 
+void StratoLPC::ScheduleNextMeasurement()
+{
+    Serial.print("Last Measurement at: ");
+    Serial.println(StartTimeSeconds);
+    TimeElements nextMeasurement;
+    breakTime(StartTimeSeconds + (time_t)Set_cycleTime * 60l, nextMeasurement);
+    scheduler.AddAction(START_WARMUP, nextMeasurement);
+    Serial.print("Next Measurement schedueled for: ");
+    Serial.print(nextMeasurement.Hour);
+    Serial.print(":");
+    Serial.print(nextMeasurement.Minute);
+    Serial.print(":");
+    Serial.println(nextMeasurement.Second);
+}
+
 TimeElements StratoLPC::Get_Next_Hour()
 {
     /* Returns a Time Elements struct of the next whole hour to sync up measurements

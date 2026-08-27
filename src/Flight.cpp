@@ -246,11 +246,17 @@ void StratoLPC::FlightMode()
             // never increments Frame or ErrorCount, since both only change
             // inside the OPCSERIAL.available() block above -- without this
             // watchdog, FL_MEASURE (and the pumps it left running) would be
-            // stuck here indefinitely.
-            ZephyrLogCrit("PHA silent: no data received, aborting measurement");
-            log_error("PHA silent: no data received, aborting measurement");
+            // stuck here indefinitely. Rather than parking in FL_ERROR to wait
+            // for ground intervention, just log it critically, shut down, and
+            // pick back up with the next scheduled measurement.
+            ZephyrLogCrit("PHA silent: no data received, skipping this measurement");
+            log_error("PHA silent: no data received, skipping this measurement");
+            LPC_Shutdown();
+            Frame = 0;
             ErrorCount = 0;
-            inst_substate = FL_ERROR;
+            ScheduleNextMeasurement();
+            inst_substate = FL_IDLE;
+            log_nominal("Entering FL_IDLE");
         }
 
         log_debug("FL Measure");
@@ -261,17 +267,7 @@ void StratoLPC::FlightMode()
         LPC_Shutdown();
         PackageTelemetry(Frame/Set_samplesToAverage);
         Frame = 0;
-        Serial.print("Last Measurement at: ");
-        Serial.println(StartTimeSeconds);
-        TimeElements nextMeasurement;
-        breakTime(StartTimeSeconds + (time_t)Set_cycleTime * 60l,nextMeasurement);
-        scheduler.AddAction(START_WARMUP, nextMeasurement);
-        Serial.print("Next Measurement schedueled for: ");
-        Serial.print(nextMeasurement.Hour);
-        Serial.print(":");
-        Serial.print(nextMeasurement.Minute);
-        Serial.print(":");
-        Serial.println(nextMeasurement.Second);
+        ScheduleNextMeasurement();
         inst_substate = FL_IDLE;
         log_nominal("Entering FL_IDLE");
         break;
