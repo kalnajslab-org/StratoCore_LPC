@@ -555,50 +555,61 @@ void StratoLPC::PackageTelemetry(int Records)
     int n = 0;
     int i = 0;
     String Message = "";
-    bool flag1 = true;
-    bool flag2 = true;
-    
+
     /* Check the values for the TM message header */
-    if ((TempPump1 > 60.0) || (TempPump1 < -30.0))
-        flag1 = false;
-    if ((TempPump2 > 60.0) || (TempPump2 < -30.0))
-        flag1 = false;
-    if ((TempLaser > 50.0) || (TempLaser < -30.0))
-        flag1 = false;
-    
+    bool temp_pump1_warn = (TempPump1 > 60.0) || (TempPump1 < -30.0);
+    bool temp_pump2_warn = (TempPump2 > 60.0) || (TempPump2 < -30.0);
+    bool temp_laser_warn = (TempLaser > 50.0) || (TempLaser < -30.0);
+    bool flag1 = !(temp_pump1_warn || temp_pump2_warn || temp_laser_warn);
+
     /*Check Voltages are in range */
-    if ((VBat > 18.0) || (VBat < 14.0))
-        flag2 = false;
-   
-    
-    // First Field
-    if (flag1) {
+    bool flag2 = !((VBat > 18.0) || (VBat < 14.0));
+
+    // First Field: overall summary, WARN if either the temp or voltage field is WARN
+    if (flag1 && flag2) {
         zephyrTX.setStateFlagValue(1, FINE);
     } else {
         zephyrTX.setStateFlagValue(1, WARN);
     }
-    
+    zephyrTX.setStateDetails(1, "LPCOPC");
+
+    // Second Field: temperature and voltage values and any per-channel
+    // warnings. Leads with "OPC" (like the RS41 TM's "RS41" tag) so tmmonster
+    // can identify this TM from StateMess2 too. Warnings only name which
+    // channel tripped, not the threshold that was exceeded, so the field
+    // stays short.
+    if (flag1 && flag2) {
+        zephyrTX.setStateFlagValue(2, FINE);
+    } else {
+        zephyrTX.setStateFlagValue(2, WARN);
+    }
+
+    Message = "OPC";
+    Message.concat(',');
     Message.concat(TempPump1);
     Message.concat(',');
     Message.concat(TempPump2);
     Message.concat(',');
     Message.concat(TempLaser);
-    zephyrTX.setStateDetails(1, Message);
+    Message.concat(',');
+    Message.concat(VBat);
+    if (temp_pump1_warn) Message += ",TempPump1Warn";
+    if (temp_pump2_warn) Message += ",TempPump2Warn";
+    if (temp_laser_warn) Message += ",TempLaserWarn";
+    if (!flag2)           Message += ",VBatWarn";
+    zephyrTX.setStateDetails(2, Message);
     Message = "";
-    
-    // Second Field
-    if (flag2) {
-        zephyrTX.setStateFlagValue(2, FINE);
-    } else {
-        zephyrTX.setStateFlagValue(2, WARN);
-    }
-    
+
+    // Third Field: GPS position. Always FINE; the voltage warning moved to
+    // StateMess2 above.
+    zephyrTX.setStateFlagValue(3, FINE);
+
     Message.concat(zephyrRX.zephyr_gps.latitude);
     Message.concat(',');
     Message.concat(zephyrRX.zephyr_gps.longitude);
     Message.concat(',');
     Message.concat(zephyrRX.zephyr_gps.altitude);
-    zephyrTX.setStateDetails(2, Message);
+    zephyrTX.setStateDetails(3, Message);
     Message = "";
 
     /* Build the telemetry binary array */
@@ -874,35 +885,53 @@ void StratoLPC::rs41SendTelemetry(uint32_t time_stamp, rs41TmSample_t* rs41_samp
 
     String Message = "";
 
-    // First Field
-    Message = "";
-    bool flag1 = true;
+    // First Field: WARN if any sample encountered an error (raw error word,
+    // decoded status flags, or an invalid read), FINE otherwise.
+    bool error_encountered = false;
+    bool invalid_seen = false;
+    uint8_t status_or = 0; // OR of all samples' packed status/error flags
     for (int i = 0; i < n_samples; i++) {
-        flag1 = flag1 & !rs41_sample_array[i].error;
+        if (!rs41_sample_array[i].valid) {
+            invalid_seen = true;
+        }
+        if (rs41_sample_array[i].error || rs41_sample_array[i].status || !rs41_sample_array[i].valid) {
+            error_encountered = true;
+        }
+        status_or |= rs41_sample_array[i].status;
     }
-    if (flag1) {
-        zephyrTX.setStateFlagValue(1, FINE);
-    } else {
+    if (error_encountered) {
         zephyrTX.setStateFlagValue(1, WARN);
-        Message += "RS41 error flag";
-    } 
-    zephyrTX.setStateDetails(1, Message);
-
-    // Second Field
-    Message = "";
-    bool flag2 = true;
-    for (int i = 0; i < n_samples; i++) {
-        flag1 = flag1 & rs41_sample_array[i].valid;
-    }
-    if (flag2) {
-        zephyrTX.setStateFlagValue(2, FINE);
     } else {
-        zephyrTX.setStateFlagValue(2, WARN);
+        zephyrTX.setStateFlagValue(1, FINE);
     }
 
-    // Set StateMess2 to "RS41" so that TM decoders can distiguish
-    // between LPC messages and RS41 messages.
+    // StateMess1 identifies this as an RS41 TM so decoders can distinguish
+    // it from LPC messages; the error detail moves to StateMess2 below.
+    zephyrTX.setStateDetails(1, "LPCRS41");
+
+    // Second Field: always leads with "RS41" (so tmmonster can identify RS41
+    // TMs from this field too), followed by the invalid-sample and named
+    // error/status conditions (see RS41_STATUS_* in StratoLPC.h) seen in any
+    // sample of this TM. Names are abbreviated so that even RS41 plus Invalid
+    // plus all 8 flags set stays well under the 100-char StateMess limit.
     Message = "RS41";
+    if (invalid_seen)                                Message += ",Invalid";
+    if (status_or & RS41_STATUS_HIGH_INTERNAL_TEMP)  Message += ",HighIntTemp";
+    if (status_or & RS41_STATUS_REGEN_TEMP_LOW)      Message += ",RegenTempLow";
+    if (status_or & RS41_STATUS_PTU_FAILURE)         Message += ",PtuFail";
+    if (status_or & RS41_STATUS_FLASH_FAILURE)       Message += ",FlashFail";
+    if (status_or & RS41_STATUS_LOW_INPUT_VOLTAGE)   Message += ",LowVin";
+    if (status_or & RS41_STATUS_NOT_CALIBRATED)      Message += ",NotCal";
+    if (status_or & RS41_STATUS_NO_PRESSURE_MODULE)  Message += ",NoPresMod";
+    if (status_or & RS41_STATUS_DISCONNECTED_BOOM)   Message += ",DiscBoom";
+
+    // Second Field: same error condition as the first field.
+    if (error_encountered) {
+        zephyrTX.setStateFlagValue(2, WARN);
+    } else {
+        zephyrTX.setStateFlagValue(2, FINE);
+    }
+
     zephyrTX.setStateDetails(2, Message);
     
     // Third Field - GPS Position
