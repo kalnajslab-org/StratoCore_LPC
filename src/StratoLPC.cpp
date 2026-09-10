@@ -37,6 +37,26 @@ void StratoLPC::InstrumentSetup()
     OPCSERIAL.addMemoryForRead(&OPC_serial_RX_buffer, sizeof(OPC_serial_RX_buffer));
     Wire.begin();//Activate  Bus I2C for Mass Flow Meter
 
+    Set_rs41SamplePeriod = ReadRS41SamplePeriodEEPROM();
+}
+
+uint16_t StratoLPC::ReadRS41SamplePeriodEEPROM()
+{
+    uint8_t hi = EEPROM.read(EEPROM_ADDR_RS41_RATE);
+    uint8_t lo = EEPROM.read(EEPROM_ADDR_RS41_RATE + 1);
+    uint16_t period = (uint16_t(hi) << 8) | lo;
+
+    if (period < RS41_SAMPLE_PERIOD_MIN_SECS || period > RS41_SAMPLE_PERIOD_MAX_SECS) {
+        return RS41_SAMPLE_PERIOD_SECS; // uninitialized (0xFFFF) or out of range
+    }
+    return period;
+}
+
+void StratoLPC::WriteRS41SamplePeriodEEPROM(uint16_t period_secs)
+{
+    EEPROM.write(EEPROM_ADDR_RS41_RATE, (uint8_t)(period_secs >> 8));
+    delay(100); //EEPROM writes take a while
+    EEPROM.write(EEPROM_ADDR_RS41_RATE + 1, (uint8_t)(period_secs & 0xFF));
 }
 
 void StratoLPC::InstrumentLoop()
@@ -108,6 +128,15 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
     case SETPUMPTEMP:
         PumpMinTemp = lpcParam.pumpMinTemp;
         ZephyrLogFine((String("TC: Updated Pump Min Temp to: ") + String(PumpMinTemp)).c_str());
+        break;
+    case SETRS41RATE:
+        if (lpcParam.rs41SamplePeriod < RS41_SAMPLE_PERIOD_MIN_SECS || lpcParam.rs41SamplePeriod > RS41_SAMPLE_PERIOD_MAX_SECS) {
+            ZephyrLogWarn("TC: RS41 sample period out of range, ignored");
+            break;
+        }
+        Set_rs41SamplePeriod = lpcParam.rs41SamplePeriod;
+        WriteRS41SamplePeriodEEPROM(Set_rs41SamplePeriod);
+        ZephyrLogFine((String("TC: Updated RS41 sample period to: ") + String(Set_rs41SamplePeriod)).c_str());
         break;
     default:
         ZephyrLogWarn("Unknown TC received");
@@ -791,7 +820,7 @@ void StratoLPC::writeLPCtoSD(int Records) {
 }
 
 void StratoLPC::rs41Start() {
-    scheduler.AddAction(RS41_SAMPLE, RS41_SAMPLE_PERIOD_SECS);
+    scheduler.AddAction(RS41_SAMPLE, Set_rs41SamplePeriod);
     if (!_rs41_start_time) {
         _rs41_start_time = now();
     }
@@ -808,11 +837,14 @@ void StratoLPC::rs41Action() {
         // *** Get the RS41 measurement
         RS41::RS41SensorData_t rs41_data = _rs41.decoded_sensor_data(false);
 
-        // Detect the initial clock update. THIS ASSUMES THAT THE
-        // SAMPLE RATE IS ONCE PER SECOND.
-        if (now() > (_rs41_start_time + RS41_N_SAMPLES_TO_REPORT)) {
-            // Set start time to now() minus the number of samples collected so far.
-            _rs41_start_time = now() - _n_rs41_samples - 1;
+        // Detect the initial clock update: if more real time has passed than
+        // the batch could legitimately take at the current sample rate, now()
+        // must have jumped forward (e.g. GPS time became valid), not that the
+        // batch is actually overdue.
+        if (now() > (_rs41_start_time + (time_t)RS41_N_SAMPLES_TO_REPORT * Set_rs41SamplePeriod)) {
+            // Set start time to now() minus the (sample-rate-scaled) time
+            // represented by the samples collected so far.
+            _rs41_start_time = now() - (time_t)_n_rs41_samples * Set_rs41SamplePeriod - 1;
         }
 
         // *** TM message handling

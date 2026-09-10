@@ -38,8 +38,16 @@
 #define RS41_ENB_PIN 32
 /// Print RS41 samples to the console.
 #define RS41_DEBUG_PRINT false
-/// How often to sample the RS41 during flight mode.
+/// Default/fallback period (seconds) to sample the RS41 during flight mode,
+/// used until a SETRS41RATE telecommand or a valid EEPROM value overrides it.
 #define RS41_SAMPLE_PERIOD_SECS 1
+/// Valid range for the RS41 sample period, enforced when loading from EEPROM.
+#define RS41_SAMPLE_PERIOD_MIN_SECS 1
+#define RS41_SAMPLE_PERIOD_MAX_SECS 300
+/// EEPROM address (2 bytes, high byte first) where the RS41 sample period is
+/// persisted. Addresses 0-3 are used by LOPCLibrary for the instrument type,
+/// serial number, and file counter; this is the next free address.
+#define EEPROM_ADDR_RS41_RATE 4
 /// The telemetry reporting period of RS41 samples.
 /// A new local storage file is also made at the same interval.
 #define RS41_N_SAMPLES_TO_REPORT 300
@@ -174,6 +182,13 @@ private:
     String rs41CsvData(RS41::RS41SensorData_t &rs41_data);
     /// @brief Send RS41 data to the console
     void rs41PrintCsv(RS41::RS41SensorData_t &rs41_data);
+    /// @brief Read the RS41 sample period from EEPROM.
+    /// @return The stored period in seconds, or RS41_SAMPLE_PERIOD_SECS if
+    /// the stored value is uninitialized (0xFFFF) or out of
+    /// [RS41_SAMPLE_PERIOD_MIN_SECS, RS41_SAMPLE_PERIOD_MAX_SECS].
+    uint16_t ReadRS41SamplePeriodEEPROM();
+    /// @brief Persist the RS41 sample period to EEPROM.
+    void WriteRS41SamplePeriodEEPROM(uint16_t period_secs);
 
     // Local storage functions
     /// @brief Create a time based file name
@@ -218,6 +233,7 @@ private:
     int Set_warmUpTime = 10;           // Warm up time in seconds
     int Set_LaserTemp = -30;           // Target Laser Temperature
     int Set_FlushingTime = 10;         // Flushing Time in seconds
+    uint16_t Set_rs41SamplePeriod = RS41_SAMPLE_PERIOD_SECS; // RS41 sample period in seconds; loaded from EEPROM in InstrumentSetup()
     uint16_t Set_phaHiGainThreshold;   // PHA high threshold
     uint16_t Set_phaHiGainOffset;      // PHA high gain baseline offset
     uint16_t Set_phaLoGainOffset;      // PHA low gain baseline offset
