@@ -2,3 +2,4 @@
 .pio
 .vscode
 src/StratoCore_LPC.cpp
+hex/
