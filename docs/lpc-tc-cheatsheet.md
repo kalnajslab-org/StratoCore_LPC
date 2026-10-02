@@ -1,6 +1,6 @@
 # LPC Telecommand Cheatsheet
 
-The telecommands `StratoLPC::TCHandler()` actually acts on — IDs 100–120 (the
+The telecommands `StratoLPC::TCHandler()` actually acts on — IDs 100–121 (the
 LPC block) plus the generic commands that apply to any instrument. Commands
 that exist in the shared enum but aren't wired up in `TCHandler()`
 (`SETMODE`, `GETFILE`, `SETHGBINS`, `SETLGBINS`, `SETHKPERIOD`, `EXITERROR`)
@@ -15,9 +15,9 @@ not a live read of the firmware — re-check it after either file changes.
 
 | ID  | Name           | Params                                              | Notes |
 |-----|----------------|------------------------------------------------------|-------|
-| 101 | `SETSAMPLE`    | `samples`: uint16                                     | → `Set_numberSamples`. PHA frames per measurement cycle. Default `60`. |
+| 101 | `SETSAMPLE`    | `samples`: uint16                                     | → `Set_numberSamples`. PHA frames per measurement cycle. Default `75`. |
 | 102 | `SETWARMUPTIME`| `warmUpTime`: uint16 (s)                              | → `Set_warmUpTime`. Default `10s`. |
-| 103 | `SETCYCLETIME` | `setCycleTime`: uint8 (min)                           | → `Set_cycleTime`. Also the interval used to schedule the next `START_WARMUP`. Default `15 min`. |
+| 103 | `SETCYCLETIME` | `setCycleTime`: uint8 (min)                           | → `Set_cycleTime`. Also the interval used to schedule the next `START_WARMUP`. Default `30 min`. |
 | 107 | `SETLASERTEMP` | `setLaserTemp`: uint8 (°C)                            | → `Set_LaserTemp`. Default `-30°C`. |
 | 109 | `SETFLUSH`     | `lpc_flush`: uint8 (s)                                | → `Set_FlushingTime`. Default `10s`. |
 | 110 | `SETSAMPLEAVG` | `samplesToAverage`: uint16                            | → `Set_samplesToAverage`. PHA frames averaged per HK sample. Default `1`. |
@@ -26,6 +26,7 @@ not a live read of the firmware — re-check it after either file changes.
 | 118 | `SETFLOW`      | `flowSetpoint`: float                                 | Sets `BEMF1_SP` **and** `BEMF2_SP` — one value drives both pumps. Default `7.8V`. |
 | 119 | `SETPUMPTEMP`  | `pumpMinTemp`: float (°C)                             | → `PumpMinTemp`. Below this, `FL_IDLE` shuts back down instead of starting warm-up. Default `-20°C`. |
 | 120 | `SETRS41RATE`  | `rs41SamplePeriod`: uint16 (s)                        | Range-checked 1–300s (out of range → warning, ignored); persisted to EEPROM addr 4. Report/local-file cadence is a fixed 300 samples, so it scales with this value. |
+| 121 | `MANUALMEASURE` | —                                                      | Flags `START_WARMUP` so `FL_IDLE` begins warm-up on its next pass. Only honored in flight mode `FL_IDLE`; otherwise a warning text TM is sent and nothing happens. Runs a single one-off measurement: the existing `START_WARMUP` schedule is left untouched and no new one is queued afterward. |
 
 IDs 111–115 are reserved in `TCMessage.py` and not defined in this firmware's
 `Telecommand_t` — do not reuse.
