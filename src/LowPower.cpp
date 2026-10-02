@@ -21,6 +21,7 @@ enum LPStates_t : uint8_t {
 
 void StratoLPC::LowPowerMode()
 {
+    in_flight_mode = false;
     switch (inst_substate) {
     case LP_ENTRY:
         // perform setup

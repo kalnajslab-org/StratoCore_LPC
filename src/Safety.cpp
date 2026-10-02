@@ -23,6 +23,7 @@ enum SAStates_t : uint8_t {
 
 void StratoLPC::SafetyMode()
 {
+    in_flight_mode = false;
     switch (inst_substate) {
     case SA_ENTRY:
         LPC_Shutdown();

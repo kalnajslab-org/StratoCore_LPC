@@ -9,21 +9,6 @@
 
 #include "StratoLPC.h"
 
-enum FLStates_t : uint8_t {
-    FL_ENTRY = MODE_ENTRY,
-    
-    // add any desired states between entry and shutdown
-    FL_GPS_WAIT,
-    FL_IDLE,
-    FL_WARMUP,
-    FL_FLUSH,
-    FL_MEASURE,
-    FL_SEND_TELEMETRY,
-    FL_ERROR,
-    FL_SHUTDOWN = MODE_SHUTDOWN,
-    FL_EXIT = MODE_EXIT
-};
-
 // this function is called at the defined rate
 //  * when flight mode is entered, it will start in FL_ENTRY state
 //  * it is then up to this function to change state as needed by updating the inst_substate variable
@@ -32,6 +17,7 @@ enum FLStates_t : uint8_t {
 //  * it is up to the FL_EXIT logic perform any actions for leaving flight mode
 void StratoLPC::FlightMode()
 {
+    in_flight_mode = true;
     if (inst_substate == FL_ENTRY) {
         _rs41.init();
         log_nominal((String("RS41: ")+_rs41.banner()).c_str());
@@ -69,6 +55,8 @@ void StratoLPC::FlightMode()
         if (CheckAction(START_WARMUP))
         {
             //ZephyrLogFine("Starting warmup");
+            Manual_measurement = Manual_warmup_pending;
+            Manual_warmup_pending = false;
             /* Set the instrument for warm up mode */
             StartTimeSeconds = now();
             Serial.print("StartTimeSeconds Updated to: ");
@@ -79,17 +67,7 @@ void StratoLPC::FlightMode()
                 ZephyrLogWarn("Pump Temp too low");
                 Serial.println("Shutting down LPC");
                 LPC_Shutdown();
-                Serial.print("Last Measurement at: ");
-                Serial.println(StartTimeSeconds);
-                TimeElements nextMeasurement;
-                breakTime(StartTimeSeconds + (time_t)Set_cycleTime * 60l,nextMeasurement);
-                scheduler.AddAction(START_WARMUP, nextMeasurement);
-                Serial.print("Next Measurement schedueled for: ");
-                Serial.print(nextMeasurement.Hour);
-                Serial.print(":");
-                Serial.print(nextMeasurement.Minute);
-                Serial.print(":");
-                Serial.println(nextMeasurement.Second);
+                ScheduleNextMeasurement();
                 inst_substate = FL_IDLE;
                 log_nominal("Entering FL_IDLE");
                 break;

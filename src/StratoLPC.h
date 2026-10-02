@@ -20,7 +20,7 @@
 
 /// Schedule the OPC for immediate start after entering flight mode,
 /// rather than waiting for the hour.
-#define OPC_IMMEDIATE_START true
+#define OPC_IMMEDIATE_START false
 
 #ifndef LOG_ZEPHYR_COMMS_SHARED
 #define ZEPHYR_SERIAL   Serial8
@@ -44,9 +44,14 @@
 /// Valid range for the RS41 sample period, enforced when loading from EEPROM.
 #define RS41_SAMPLE_PERIOD_MIN_SECS 1
 #define RS41_SAMPLE_PERIOD_MAX_SECS 300
+/// EEPROM map -- claim new addresses here and in docs/lpc-eeprom-map.md.
+///   0     1 byte    Instrument type          (LOPCLibrary)
+///   1     1 byte    Serial number            (LOPCLibrary)
+///   2-3   2 bytes   File counter, hi byte first (LOPCLibrary)
+///   4-5   2 bytes   RS41 sample period (s), hi byte first (EEPROM_ADDR_RS41_RATE)
+///   6+    free
 /// EEPROM address (2 bytes, high byte first) where the RS41 sample period is
-/// persisted. Addresses 0-3 are used by LOPCLibrary for the instrument type,
-/// serial number, and file counter; this is the next free address.
+/// persisted (SETRS41RATE).
 #define EEPROM_ADDR_RS41_RATE 4
 /// The telemetry reporting period of RS41 samples.
 /// A new local storage file is also made at the same interval.
@@ -74,6 +79,22 @@
 #define PHA_SILENCE_TIMEOUT_MS (30UL * 1000UL)
 
 #define PHA_BUFFER_SIZE 4096
+
+// Flight mode substates (used by Flight.cpp and the TC handler)
+enum FLStates_t : uint8_t {
+    FL_ENTRY = MODE_ENTRY,
+    
+    // add any desired states between entry and shutdown
+    FL_GPS_WAIT,
+    FL_IDLE,
+    FL_WARMUP,
+    FL_FLUSH,
+    FL_MEASURE,
+    FL_SEND_TELEMETRY,
+    FL_ERROR,
+    FL_SHUTDOWN = MODE_SHUTDOWN,
+    FL_EXIT = MODE_EXIT
+};
 
 // todo: perhaps more creative/useful enum here by mode with separate arrays?
 // WARNING: this construct assumes that NUM_ACTIONS will be equal to the number
@@ -135,7 +156,9 @@ private:
     //LPC Functions
     void LPC_Shutdown();
     TimeElements Get_Next_Hour();
-    /// @brief Log and schedule the next START_WARMUP action, Set_cycleTime
+    /// @brief Log and schedule the next START_WARMUP action (unless the
+    /// measurement was manually started, in which case the existing schedule
+    /// is left alone and Manual_measurement is cleared), Set_cycleTime
     /// minutes after StartTimeSeconds (the start of the measurement just
     /// finished/skipped). Does not change inst_substate or touch the pumps --
     /// callers are expected to have already called LPC_Shutdown() and to set
@@ -238,6 +261,11 @@ private:
     uint16_t Set_phaHiGainOffset;      // PHA high gain baseline offset
     uint16_t Set_phaLoGainOffset;      // PHA low gain baseline offset
     bool Set_triggerPHAconfig = false; // Trigger the PHA configuration, which happens during FL_WARMUP
+    bool Manual_warmup_pending = false; // MANUALMEASURE TC received, START_WARMUP not yet consumed by FL_IDLE
+    bool Manual_measurement = false;    // The measurement in progress was started by MANUALMEASURE; don't reschedule
+    bool Manual_missed = false;         // A scheduled START_WARMUP came due during a manual measurement
+    time_t Manual_missed_time = 0;      // When that scheduled START_WARMUP came due
+    bool in_flight_mode = false;       // True while FlightMode() is the running mode function (inst_mode is private to StratoCore)
     bool Set_rs41regen = false;        // Initiate an RS41 regeneration
     float PumpMinTemp = -20.0;          // Minimum temperature for the pumps to operate
     /* These should be set for each instrument */

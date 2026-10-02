@@ -20,6 +20,7 @@ enum EFStates_t : uint8_t {
 
 void StratoLPC::EndOfFlightMode()
 {
+    in_flight_mode = false;
     switch (inst_substate) {
     case EF_ENTRY:
         // perform setup

@@ -138,6 +138,16 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
         WriteRS41SamplePeriodEEPROM(Set_rs41SamplePeriod);
         ZephyrLogFine((String("TC: Updated RS41 sample period to: ") + String(Set_rs41SamplePeriod)).c_str());
         break;
+    case MANUALMEASURE:
+        if (in_flight_mode && inst_substate == FL_IDLE) {
+            Manual_missed = false; // drop any leftover from an aborted manual run
+            ActionHandler(START_WARMUP);
+            Manual_warmup_pending = true;
+            ZephyrLogFine("TC: Starting single manual measurement");
+        } else {
+            ZephyrLogWarn("TC: MANUALMEASURE ignored, not in FL_IDLE");
+        }
+        break;
     default:
         ZephyrLogWarn("Unknown TC received");
         break;
@@ -151,6 +161,15 @@ void StratoLPC::ActionHandler(uint8_t action)
     if (action >= NUM_ACTIONS) {
         log_error("Out of bounds action flag access");
         return;
+    }
+
+    // A scheduled START_WARMUP that comes due while a manual measurement is
+    // pending or running would share/expire with the manual one and end the
+    // schedule, since only a finishing measurement queues the next. Note the
+    // time so ScheduleNextMeasurement() can resume the cadence.
+    if (action == START_WARMUP && (Manual_measurement || Manual_warmup_pending)) {
+        Manual_missed = true;
+        Manual_missed_time = now();
     }
 
     // set the flag and reset the stale count
@@ -209,6 +228,25 @@ void StratoLPC::LPC_Shutdown()
 
 void StratoLPC::ScheduleNextMeasurement()
 {
+    // A MANUALMEASURE-initiated measurement is a one-off: the previously
+    // scheduled START_WARMUP is still queued, so don't start a second sequence.
+    if (Manual_measurement) {
+        Manual_measurement = false;
+        if (Manual_missed) {
+            // The scheduled measurement came due during the manual one and was
+            // lost. Skip it and resume the cadence at the next slot.
+            Manual_missed = false;
+            time_t next = Manual_missed_time + (time_t)Set_cycleTime * 60l;
+            while (next <= now() + 1) next += (time_t)Set_cycleTime * 60l;
+            TimeElements nextMeasurement;
+            breakTime(next, nextMeasurement);
+            scheduler.AddAction(START_WARMUP, nextMeasurement);
+            Serial.println("Manual measurement done, scheduled measurement was missed; cadence resumed");
+        } else {
+            Serial.println("Manual measurement done, existing schedule unchanged");
+        }
+        return;
+    }
     Serial.print("Last Measurement at: ");
     Serial.println(StartTimeSeconds);
     TimeElements nextMeasurement;
