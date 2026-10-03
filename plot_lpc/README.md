@@ -27,6 +27,18 @@ Use `pip install -e ./StratoCore_LPC/plot_lpc` if you want edits to the source t
 
 Install into a virtual environment or with `pipx install ...` if you'd rather not touch your main Python.
 
+**Updating**
+
+Re-run the install command with `--upgrade`:
+
+```
+pip install --upgrade "git+https://github.com/kalnajslab-org/StratoCore_LPC.git#subdirectory=plot_lpc"
+```
+
+Pip decides what is newer from the `version` in `pyproject.toml`, so a new version has to be published with a bumped version number to be picked up. If you know the code changed but the version didn't, add `--force-reinstall` (and `--no-deps` to skip reinstalling matplotlib and pyserial). With pipx, use `pipx upgrade plot-lpc-bins`.
+
+For a local clone, `git pull` and run `pip install --upgrade ./StratoCore_LPC/plot_lpc` again. An editable install (`-e`) needs only the `git pull`, unless the commands in `pyproject.toml` changed.
+
 **Run it**
 
 ```
