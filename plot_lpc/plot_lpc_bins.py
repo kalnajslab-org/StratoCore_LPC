@@ -64,7 +64,7 @@ import threading
 import time
 
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, TextBox
 
 try:
     import serial
@@ -207,22 +207,26 @@ def make_line_source(args):
         f = sys.stdin if args.file == "-" else open(args.file, "r", errors="replace")
         with f:
             for line in f:
+                # args.speed can be changed at any time from the GUI speed box;
+                # None/0 means unpaced
                 if args.speed:
                     ts = parse_log_timestamp(line)
                     if ts is not None:
-                        if prev_ts is not None:
+                        if prev_ts is not None and state not in IDLE_STATES:
                             # the gap belongs to the state we were in on the previous
                             # line; skip it while idle/standby since nothing is plotted
-                            if state not in IDLE_STATES:
-                                dt = (ts - prev_ts) % 86400  # tolerate midnight wrap
+                            dt = (ts - prev_ts) % 86400  # tolerate midnight wrap
+                            # sleep in short slices so a speed change takes effect promptly
+                            while args.speed:
                                 wait = dt / args.speed - (time.monotonic() - t_prev_wall)
-                                if wait > 0:
-                                    time.sleep(wait)
+                                if wait <= 0:
+                                    break
+                                time.sleep(min(wait, 0.1))
                         prev_ts = ts
                         t_prev_wall = time.monotonic()
-                    m = ENTERING_RE.search(line)
-                    if m:
-                        state = m.group(1)
+                m = ENTERING_RE.search(line)
+                if m:
+                    state = m.group(1)
                 yield line
     else:
         if serial is None:
@@ -280,6 +284,42 @@ class BinPlotter:
             0.99, 0.03, "", ha="right", va="center", fontsize=9, family="monospace"
         )
         self._render_status()
+
+    def reset(self):
+        """Return the figure to its start-up (no data yet) state, e.g. for a playback restart."""
+        for bars, ax, title in (
+            (self.hg_bars, self.ax_hg, "StratoLPC High Gain Size Bins"),
+            (self.lg_bars, self.ax_lg, "StratoLPC Low Gain Size Bins"),
+        ):
+            for bar in bars:
+                bar.set_height(0)
+            ax.set_ylim(0.5, 10)
+            ax.set_title(title)
+        self.hg_bins = [0] * N_SIZE_BINS
+        self.lg_bins = [0] * N_SIZE_BINS
+        self.hg_record = self.lg_record = None
+        self.hg_frame_count = self.lg_frame_count = 0
+        for attr in ("hg_peak_annotation", "lg_peak_annotation"):
+            old = getattr(self, attr)
+            if old is not None:
+                try:
+                    old.remove()
+                except (ValueError, NotImplementedError):
+                    pass
+                setattr(self, attr, None)
+
+        # ax.clear() also discards the PHA lines and annotations
+        for ax, title in ((self.ax_pha_hg, "PHA Raw High Gain Spectrum"), (self.ax_pha_lg, "PHA Raw Low Gain Spectrum")):
+            ax.clear()
+            ax.set_title(title + " (no data yet)")
+            ax.set_xlabel("Raw ADC bin (reversed)")
+            ax.set_ylabel("Counts")
+        self.pha_hg_line = self.pha_lg_line = None
+        self.pha_hg_peak_annotation = self.pha_lg_peak_annotation = None
+
+        self.status = {key: "--" for key in STATUS_FIELDS.values()}
+        self._render_status()
+        self.dirty = True
 
     def update_size_bins(self, tag, record, bins):
         if tag == "HGBINS":
@@ -462,43 +502,52 @@ def main():
     parser.add_argument("--port", help="Serial port (e.g. /dev/tty.usbmodem1234 or COM5)")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output)")
     parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port; use - to read from stdin")
-    parser.add_argument("--speed", type=float, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Default: as fast as possible")
+    parser.add_argument("--speed", type=float, default=10.0, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Use 0 for as fast as possible. Default: 10. Can also be changed during playback with the Speed box")
     args = parser.parse_args()
 
     if not args.file and not args.port:
         parser.error("either --port or --file is required")
     # --speed only means something for file playback; silently ignored otherwise
-    if args.file and args.speed is not None and args.speed <= 0:
-        parser.error("--speed must be greater than 0")
+    if args.file and args.speed < 0:
+        parser.error("--speed must not be negative (0 = unpaced)")
 
     plotter = BinPlotter()
 
     # Read the port/file on a background thread so the GUI never blocks on I/O.
     # The bounded queue throttles file replay (reader blocks when it's full)
     # while a live port just keeps filling it.
-    lines = queue.Queue(maxsize=2000)
+    lines = queue.Queue(maxsize=2000)  # items are (reader generation, line)
     stop = threading.Event()
     running = threading.Event()  # cleared while a file playback is paused
     running.set()
+    generation = [0]  # bumped on playback restart; superseded readers exit quietly
 
-    def reader():
+    def reader(my_gen):
+        def superseded():
+            return stop.is_set() or generation[0] != my_gen
+
         try:
             for line in make_line_source(args):
                 while not running.wait(0.2):  # hold here while paused
-                    if stop.is_set():
+                    if superseded():
                         return
-                while not stop.is_set():
+                while not superseded():
                     try:
-                        lines.put(line, timeout=0.2)
+                        lines.put((my_gen, line), timeout=0.2)
                         break
                     except queue.Full:
                         pass
-                if stop.is_set():
+                if superseded():
                     return
         except Exception as e:  # e.g. serial port unplugged
-            lines.put(f"[reader stopped: {e}]\n")
+            if not superseded():
+                lines.put((my_gen, f"[reader stopped: {e}]\n"))
 
-    threading.Thread(target=reader, daemon=True).start()
+    def start_reader():
+        generation[0] += 1
+        threading.Thread(target=reader, args=(generation[0],), daemon=True).start()
+
+    start_reader()
 
     def on_timer():
         if not running.is_set():
@@ -507,30 +556,91 @@ def main():
         deadline = time.monotonic() + 0.03
         while time.monotonic() < deadline:
             try:
-                line = lines.get_nowait()
+                gen, line = lines.get_nowait()
             except queue.Empty:
                 break
-            dispatch_line(plotter, line)
+            if gen == generation[0]:  # drop stragglers from a superseded reader
+                dispatch_line(plotter, line)
         plotter.redraw_if_dirty()
 
-    # Pause/Run control: only meaningful (and only shown) when replaying a file;
-    # a live port can't be paused without losing data
+    # Pause/Run and Restart controls: only meaningful (and only shown) when
+    # replaying a file; a live port can't be paused without losing data
     if args.file:
-        button = Button(plotter.fig.add_axes([0.01, 0.01, 0.08, 0.045]), "Pause")
+        button = Button(plotter.fig.add_axes([0.01, 0.01, 0.09, 0.045]), "Pause (p)")
 
         def toggle(_event=None):
             if running.is_set():
                 running.clear()
-                button.label.set_text("Run")
+                button.label.set_text("Run (p)")
             else:
                 running.set()
-                button.label.set_text("Pause")
+                button.label.set_text("Pause (p)")
             plotter.fig.canvas.draw_idle()
 
         button.on_clicked(toggle)
-        plotter.fig.canvas.mpl_connect(
-            "key_press_event", lambda e: toggle() if e.key == " " else None
+
+        # stdin can't be rewound, so Restart is only offered for a real file
+        restart_button = None
+        if args.file != "-":
+            restart_button = Button(plotter.fig.add_axes([0.11, 0.01, 0.09, 0.045]), "Restart (r)")
+
+            def restart(_event=None):
+                start_reader()  # bumps the generation, which retires the old reader
+                while True:  # discard anything the old reader queued
+                    try:
+                        lines.get_nowait()
+                    except queue.Empty:
+                        break
+                plotter.reset()
+                running.set()
+                button.label.set_text("Pause (p)")
+                plotter.fig.canvas.draw_idle()
+
+            restart_button.on_clicked(restart)
+
+        # matplotlib binds p to the pan tool and r to "home view"; free them up
+        for param, key in (("keymap.pan", "p"), ("keymap.home", "r")):
+            plt.rcParams[param] = [k for k in plt.rcParams[param] if k != key]
+
+        # Speed box: type a multiple of real time (blank, 0 or "max" = unpaced);
+        # takes effect immediately because the reader re-reads args.speed
+        def speed_text():
+            return "max" if not args.speed else f"{args.speed:g}"
+
+        speed_box = TextBox(
+            plotter.fig.add_axes([0.27, 0.01, 0.06, 0.045]), "Speed ", initial=speed_text()
         )
+
+        def on_speed(text):
+            text = text.strip().lower()
+            if text in ("", "0", "max"):
+                args.speed = None
+            else:
+                try:
+                    value = float(text)
+                    if value > 0:
+                        args.speed = value
+                except ValueError:
+                    pass  # bad entry: keep the current speed
+            # echo back the value actually in effect, without re-triggering on_submit
+            speed_box.eventson = False
+            try:
+                speed_box.set_val(speed_text())
+            finally:
+                speed_box.eventson = True
+            plotter.fig.canvas.draw_idle()
+
+        speed_box.on_submit(on_speed)
+
+        def on_key(e):
+            if speed_box.capturekeystrokes:
+                return  # typing in the speed box, not using shortcuts
+            if e.key in (" ", "p"):
+                toggle()
+            elif e.key == "r" and restart_button is not None:
+                restart()
+
+        plotter.fig.canvas.mpl_connect("key_press_event", on_key)
 
     timer = plotter.fig.canvas.new_timer(interval=50)
     timer.add_callback(on_timer)
