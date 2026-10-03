@@ -56,6 +56,7 @@ Requires: pyserial, matplotlib
 """
 
 import argparse
+import importlib.metadata
 import math
 import queue
 import re
@@ -245,6 +246,14 @@ def make_line_source(args):
                 yield raw.decode(errors="replace")
 
 
+def window_title():
+    """'plot-lpc-bins v<version>' from the installed package metadata (no version when run from a bare checkout)."""
+    try:
+        return f"plot-lpc-bins v{importlib.metadata.version('plot-lpc-bins')}"
+    except importlib.metadata.PackageNotFoundError:
+        return "plot-lpc-bins"
+
+
 class BinPlotter:
     """Owns the figure and knows how to redraw whichever bin arrays have new data."""
 
@@ -252,6 +261,7 @@ class BinPlotter:
         self.fig, ((self.ax_hg, self.ax_lg), (self.ax_pha_hg, self.ax_pha_lg)) = plt.subplots(
             2, 2, figsize=(13, 8)
         )
+        self.fig.canvas.manager.set_window_title(window_title())
 
         self.hg_bins = [0] * N_SIZE_BINS
         self.lg_bins = [0] * N_SIZE_BINS
