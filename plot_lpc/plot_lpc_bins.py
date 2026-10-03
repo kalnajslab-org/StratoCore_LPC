@@ -61,6 +61,7 @@ import threading
 import time
 
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
 
 try:
     import serial
@@ -444,10 +445,15 @@ def main():
     # while a live port just keeps filling it.
     lines = queue.Queue(maxsize=2000)
     stop = threading.Event()
+    running = threading.Event()  # cleared while a file playback is paused
+    running.set()
 
     def reader():
         try:
             for line in make_line_source(args):
+                while not running.wait(0.2):  # hold here while paused
+                    if stop.is_set():
+                        return
                 while not stop.is_set():
                     try:
                         lines.put(line, timeout=0.2)
@@ -462,6 +468,8 @@ def main():
     threading.Thread(target=reader, daemon=True).start()
 
     def on_timer():
+        if not running.is_set():
+            return
         # process whatever has arrived, within a time budget, then redraw once
         deadline = time.monotonic() + 0.03
         while time.monotonic() < deadline:
@@ -471,6 +479,26 @@ def main():
                 break
             dispatch_line(plotter, line)
         plotter.redraw_if_dirty()
+
+    # Pause/Run control: only meaningful (and only shown) when replaying a file;
+    # a live port can't be paused without losing data
+    if args.file:
+        plotter.fig.tight_layout(rect=(0, 0.07, 1, 1))  # leave room for the button
+        button = Button(plotter.fig.add_axes([0.01, 0.01, 0.08, 0.045]), "Pause")
+
+        def toggle(_event=None):
+            if running.is_set():
+                running.clear()
+                button.label.set_text("Run")
+            else:
+                running.set()
+                button.label.set_text("Pause")
+            plotter.fig.canvas.draw_idle()
+
+        button.on_clicked(toggle)
+        plotter.fig.canvas.mpl_connect(
+            "key_press_event", lambda e: toggle() if e.key == " " else None
+        )
 
     timer = plotter.fig.canvas.new_timer(interval=50)
     timer.add_callback(on_timer)
