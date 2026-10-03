@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plot-lpc-bins"
+version = "1.0.0"
+description = "Live plot of Strateole 2 LPC size-bin and PHA spectrum data from a serial console or saved log"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pyserial",
+    "matplotlib",
+]
+
+[project.scripts]
+plot-lpc-bins = "plot_lpc_bins:main"
+lpc-fake-port = "fake_port:main"
+
+[tool.setuptools]
+py-modules = ["plot_lpc_bins", "fake_port"]

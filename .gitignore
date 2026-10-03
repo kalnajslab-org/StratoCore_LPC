@@ -4,3 +4,6 @@
 src/StratoCore_LPC.cpp
 hex/
 *.pyc
+build/
+dist/
+*.egg-info/
