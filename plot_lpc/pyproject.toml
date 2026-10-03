@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plot-lpc-bins"
-version = "1.0.0"
+version = "1.0.1"
 description = "Live plot of Strateole 2 LPC size-bin and PHA spectrum data from a serial console or saved log"
 readme = "README.md"
 requires-python = ">=3.8"

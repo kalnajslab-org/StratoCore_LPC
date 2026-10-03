@@ -42,11 +42,11 @@ For a local clone, `git pull` and run `pip install --upgrade ./StratoCore_LPC/pl
 **Run it**
 
 ```
-# replay a saved console log (paced at 10x real time by default)
-plot-lpc-bins --file LPC_DBG_2026-10-02T11-00-32.txt
-
 # read live from the LPC board's debug console
 plot-lpc-bins --port /dev/tty.usbmodemXXXX --baud 115200
+
+# or replay a saved console log (paced at 10x real time by default)
+plot-lpc-bins --file LPC_DBG_2026-10-02T11-00-32.txt
 ```
 
 The command is `plot-lpc-bins` (hyphens). `python -m plot_lpc_bins` works too.
