@@ -53,6 +53,7 @@ Requires: pyserial, matplotlib
 """
 
 import argparse
+import math
 import queue
 import re
 import sys
@@ -279,7 +280,10 @@ class BinPlotter:
             bar.set_height(value)
         # log scale can't show 0, so give it a small positive floor; zero-count
         # bins just render as a sliver at the bottom, which is fine
-        ax.set_ylim(0.5, max(bins + [1]) * 2)
+        # top margin sized so the peak label takes ~15% of the axes height: on a log
+        # axis that means solving log(top) - log(peak) = 0.15 * (log(top) - log(0.5))
+        log_peak = math.log10(max(bins + [1]))
+        ax.set_ylim(0.5, 10 ** ((log_peak + 0.15 * math.log10(0.5) * -1) / 0.85))
         ax.set_title(f"{label}, total counts: {sum(bins)} (frame {record})")
 
         self._update_peak_label(ax, xs, bins, original_indices, peak_attr)
@@ -309,12 +313,17 @@ class BinPlotter:
 
         peak_pos = max(range(len(ys)), key=lambda i: ys[i])
         peak_x, peak_y, peak_bin = xs[peak_pos], ys[peak_pos], original_indices[peak_pos]
+        # Label sits just above the peak with an arrow pointing down to it; the
+        # callers leave headroom in the y-limits so it stays inside the axes.
+        # Near either edge, anchor the text to that side so it doesn't spill out.
+        frac = peak_x / max(len(ys) - 1, 1)
+        ha = "left" if frac < 0.1 else "right" if frac > 0.9 else "center"
         annotation = ax.annotate(
             f"peak: bin {peak_bin}\n({peak_y} counts)",
             xy=(peak_x, peak_y),
-            xytext=(0, 12),
+            xytext=(0, 8),
             textcoords="offset points",
-            ha="center",
+            ha=ha,
             va="bottom",
             fontsize=8,
             arrowprops=dict(arrowstyle="->", color="black", lw=0.8),
@@ -351,7 +360,7 @@ class BinPlotter:
             setattr(self, peak_attr, None)  # ax.clear() already destroyed any old annotation
         else:
             line.set_ydata(reversed_values)
-        ax.set_ylim(0, max(values + [1]) * 1.1)
+        ax.set_ylim(0, max(values + [1]) * 1.18)  # headroom for the peak label
         title = f"{label}, total counts: {sum(values)}"
         if extra_title:
             title += f" ({extra_title})"
