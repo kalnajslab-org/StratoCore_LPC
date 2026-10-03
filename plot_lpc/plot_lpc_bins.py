@@ -45,6 +45,9 @@ Usage:
     # replay a saved log instead of a live port (format is auto-detected either way)
     python3 plot_lpc_bins.py --file console_log.txt
 
+    # read from stdin (simulates a device; --speed and Pause/Run still apply)
+    cat console_log.txt | python3 plot_lpc_bins.py --file -
+
     # replay a timestamped log at 10x real time (1 = real time, 0.5 = half speed)
     python3 plot_lpc_bins.py --file LPC_DBG_log.txt --speed 10
 
@@ -75,6 +78,15 @@ N_SIZE_BINS = 16  # StratoLPC's downsampled size bins (HGBins/LGBins)
 # and SB is entered silently from FL_IDLE so it looks like a long FL_IDLE.
 ENTERING_RE = re.compile(r"NOM: Entering (\w+)")
 IDLE_STATES = {None, "FL", "FL_IDLE"}
+
+# housekeeping lines shown in the status bar: console label -> status key
+STATUS_FIELDS = {
+    "Pulse Count": "pulses",
+    "Flow": "flow",
+    "Pump1 T": "pump1",
+    "Pump2 T": "pump2",
+    "Inlet T": "inlet",
+}
 
 
 def parse_size_bins_line(line, tag):
@@ -191,7 +203,9 @@ def make_line_source(args):
         prev_ts = None  # previous line's log timestamp, in seconds
         t_prev_wall = None
         state = None  # instrument state from the log's 'Entering <state>' lines
-        with open(args.file, "r", errors="replace") as f:
+        # '-' means read from stdin, e.g.  cat log.txt | plot_lpc_bins.py --file -
+        f = sys.stdin if args.file == "-" else open(args.file, "r", errors="replace")
+        with f:
             for line in f:
                 if args.speed:
                     ts = parse_log_timestamp(line)
@@ -259,7 +273,13 @@ class BinPlotter:
             ax.set_ylabel("Counts")
 
         self.dirty = False
-        self.fig.tight_layout()
+        self.fig.tight_layout(rect=(0, 0.07, 1, 1))  # bottom strip: button + status bar
+        # status bar: latest value of each housekeeping line (STATUS_FIELDS)
+        self.status = {key: "--" for key in STATUS_FIELDS.values()}
+        self.status_text = self.fig.text(
+            0.99, 0.03, "", ha="right", va="center", fontsize=9, family="monospace"
+        )
+        self._render_status()
 
     def update_size_bins(self, tag, record, bins):
         if tag == "HGBINS":
@@ -370,6 +390,18 @@ class BinPlotter:
         self._update_peak_label(ax, xs, reversed_values, original_indices, peak_attr)
         self._flush()
 
+    def update_status(self, key, value):
+        self.status[key] = value
+        self._render_status()
+        self.dirty = True
+
+    def _render_status(self):
+        st = self.status
+        self.status_text.set_text(
+            f"Pulses: {st['pulses']}   Flow: {st['flow']}   "
+            f"Pump1 T: {st['pump1']}   Pump2 T: {st['pump2']}   Inlet T: {st['inlet']}"
+        )
+
     def _flush(self):
         # just mark dirty; the GUI timer redraws once per tick regardless of
         # how many lines arrived since the last one
@@ -389,6 +421,9 @@ def dispatch_line(plotter, line):
         end = line.find("] ")
         if 0 < end <= 16:
             line = line[end + 2:]
+    label, sep, value = line.partition(":")
+    if sep and label in STATUS_FIELDS and value.strip():
+        return plotter.update_status(STATUS_FIELDS[label], value.strip())
     # cheap prefix checks first so ordinary log lines skip all the parsers
     if line.startswith("HGBINS,"):
         result = parse_size_bins_line(line, "HGBINS")
@@ -426,7 +461,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", help="Serial port (e.g. /dev/tty.usbmodem1234 or COM5)")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output)")
-    parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port")
+    parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port; use - to read from stdin")
     parser.add_argument("--speed", type=float, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Default: as fast as possible")
     args = parser.parse_args()
 
@@ -483,7 +518,6 @@ def main():
     # Pause/Run control: only meaningful (and only shown) when replaying a file;
     # a live port can't be paused without losing data
     if args.file:
-        plotter.fig.tight_layout(rect=(0, 0.07, 1, 1))  # leave room for the button
         button = Button(plotter.fig.add_axes([0.01, 0.01, 0.08, 0.045]), "Pause")
 
         def toggle(_event=None):
