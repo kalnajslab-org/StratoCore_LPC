@@ -2,7 +2,7 @@
 
 Live plots of Strateole 2 LPC data from the instrument's serial console or from a saved console log. By default it shows the StratoLPC high-gain and low-gain size bins, with a status bar of housekeeping values. With `--pha` it shows the PHA board's raw high-gain and low-gain pulse-height spectra instead.
 
-![plot-lpc-bins replaying an LPC debug log](lpc-plot-bins.png)
+![plot-lpc-bins replaying an LPC debug log](plot-lpc-bins.png)
 
 ## Quickstart
 
