@@ -2,12 +2,18 @@
 """
 plot_lpc_bins.py
 
-Live-plots LPC/PHA bin data from a serial console or a saved log file. Four
-line formats are recognized on the same stream, auto-detected line by line:
+Live-plots LPC or PHA bin data from a serial console or a saved log file.
+One pair of plots is shown at a time:
+
+  (default) the StratoLPC high/low gain size bins
+  --pha     the PHA board's raw high/low gain pulse-height spectra
+
+Data for the other plot is recognized but ignored. Line formats, auto-detected
+line by line:
 
 1. StratoLPC's 16 size bins, printed once per sample frame by
    StratoLPC::fillBins() (see printBinsCSV() in StratoLPC.cpp), read from the
-   LPC main board's DEBUG_SERIAL console:
+   LPC main board's DEBUG_SERIAL console (default plot):
        HGBINS,<record>,<bin0>,<bin1>,...,<bin15>
        LGBINS,<record>,<bin0>,<bin1>,...,<bin15>
 
@@ -16,16 +22,20 @@ line formats are recognized on the same stream, auto-detected line by line:
        High Gain Bins: <bin0>, <bin1>, ..., <bin15>,
        Low Gain Bins: <bin0>, <bin1>, ..., <bin15>,
 
-2. The PHA's raw 256-element downsampled pulse-height spectra, printed to its
-   own USB DEBUG_SERIAL console (PlatformIO PHA_V5_1.ino, V5.1a+) once per
-   CYCLE_TIME when enabled with the '#hgprint,1' / '#lgprint,1' interactive
-   commands:
+   The LPC console's housekeeping lines (Pulse Count, Flow, Pump1 T, Pump2 T,
+   Inlet T) are shown in a status bar on the default plot.
+
+2. The PHA's raw 256-element downsampled pulse-height spectra (--pha), printed
+   to its own USB DEBUG_SERIAL console (PlatformIO PHA_V5_1.ino, V5.1a+) once
+   per CYCLE_TIME when enabled with the '#hgprint,1' / '#lgprint,1'
+   interactive commands:
        HG_Small_Array: <b0>,<b1>,...,<b255>,
        LG_Small_Array: <b0>,<b1>,...,<b255>,
 
-3. The same raw 256-element spectra, but read from the PHA's OUTPUT_SERIAL
-   (Serial1, 500000 baud) line to the main board instead of its USB console
-   (e.g. tapping Serial1 TX with a USB-TTL adapter for bench testing):
+3. The same raw 256-element spectra (--pha), but read from the PHA's
+   OUTPUT_SERIAL (Serial1, 500000 baud) line to the main board instead of its
+   USB console (e.g. tapping Serial1 TX with a USB-TTL adapter for bench
+   testing):
        <timestamp>,<laserI>,<threshold>,<pulse_count>,<256 HG values>,<256 LG values>,E
 
 All other lines are ignored for plotting but echoed to stdout so you can
@@ -37,12 +47,12 @@ Usage:
 
     # PHA board's own USB console (256-element raw spectra); once connected,
     # send '#hgprint,1' and '#lgprint,1' to the PHA to turn printing on
-    python3 plot_lpc_bins.py --port /dev/tty.usbmodemYYYY --baud 115200
+    python3 plot_lpc_bins.py --pha --port /dev/tty.usbmodemYYYY --baud 115200
 
     # PHA board's Serial1 line to the main board instead (256-element raw spectra)
-    python3 plot_lpc_bins.py --port /dev/tty.usbserialXXXX --baud 500000
+    python3 plot_lpc_bins.py --pha --port /dev/tty.usbserialXXXX --baud 500000
 
-    # replay a saved log instead of a live port (format is auto-detected either way)
+    # replay a saved log instead of a live port (add --pha for PHA data)
     python3 plot_lpc_bins.py --file console_log.txt
 
     # read from stdin (simulates a device; --speed and Pause/Run still apply)
@@ -75,10 +85,11 @@ except ImportError:
 N_SIZE_BINS = 16  # StratoLPC's downsampled size bins (HGBins/LGBins)
 
 # --speed replay skips the waiting time while the log says the instrument is in
-# one of these states (or before any state is seen): no bins are produced then,
-# and SB is entered silently from FL_IDLE so it looks like a long FL_IDLE.
+# one of these states: no bins are produced then, and SB is entered silently
+# from FL_IDLE so it looks like a long FL_IDLE. Logs with no 'Entering <state>'
+# lines at all (e.g. PHA data) never match, so they are paced throughout.
 ENTERING_RE = re.compile(r"NOM: Entering (\w+)")
-IDLE_STATES = {None, "FL", "FL_IDLE"}
+IDLE_STATES = {"FL", "FL_IDLE"}
 
 # Size (nm) of each StratoLPC size bin, as in the LPC data file's column header
 # (HG bins 0-15, then LG bins 0-15). Bin 15 of the LG set is always empty in
@@ -257,89 +268,98 @@ def window_title():
 class BinPlotter:
     """Owns the figure and knows how to redraw whichever bin arrays have new data."""
 
-    def __init__(self):
-        self.fig, ((self.ax_hg, self.ax_lg), (self.ax_pha_hg, self.ax_pha_lg)) = plt.subplots(
-            2, 2, figsize=(13, 8)
-        )
+    def __init__(self, mode="lpc"):
+        """mode 'lpc' plots StratoLPC's 16 HG/LG size bins; 'pha' plots the PHA's raw spectra."""
+        self.mode = mode
+        self.fig, axes = plt.subplots(1, 2, figsize=(13, 8))
         self.fig.canvas.manager.set_window_title(window_title())
-
-        self.hg_bins = [0] * N_SIZE_BINS
-        self.lg_bins = [0] * N_SIZE_BINS
-        self.hg_record = None
-        self.lg_record = None
-        # fallback frame counters, used when a line format doesn't carry its own
-        # record number (e.g. the legacy 'High Gain Bins: ...' text format)
-        self.hg_frame_count = 0
-        self.lg_frame_count = 0
-        self.hg_bars = self.ax_hg.bar(range(N_SIZE_BINS), self.hg_bins, color="tab:blue")
-        self.lg_bars = self.ax_lg.bar(range(N_SIZE_BINS), self.lg_bins, color="tab:orange")
-        self.hg_peak_annotation = None
-        self.lg_peak_annotation = None
-        for ax, title, sizes in (
-            (self.ax_hg, "StratoLPC High Gain Size Bins", HG_BIN_SIZES),
-            (self.ax_lg, "StratoLPC Low Gain Size Bins", LG_BIN_SIZES),
-        ):
-            ax.set_title(title)
-            ax.set_xlabel("Size bin (nm)")
-            ax.set_xticks(range(N_SIZE_BINS))
-            ax.set_xticklabels([str(v) for v in sizes], rotation=90, fontsize=7)
-            ax.set_ylabel("Counts")
-            ax.set_ylim(0.5, 10)  # placeholder range so switching to log scale below has something positive to work with
-            ax.set_yscale("log")
-
-        # PHA raw spectra: created lazily once we know how many elements they have
-        self.pha_hg_line = None
-        self.pha_lg_line = None
-        self.pha_hg_peak_annotation = None
-        self.pha_lg_peak_annotation = None
-        for ax, title in ((self.ax_pha_hg, "PHA Raw High Gain Spectrum"), (self.ax_pha_lg, "PHA Raw Low Gain Spectrum")):
-            ax.set_title(title + " (no data yet)")
-            ax.set_xlabel("Raw ADC bin (reversed)")
-            ax.set_ylabel("Counts")
-
         self.dirty = False
-        self.fig.tight_layout(rect=(0, 0.07, 1, 1))  # bottom strip: button + status bar
-        # status bar: latest value of each housekeeping line (STATUS_FIELDS)
-        self.status = {key: "--" for key in STATUS_FIELDS.values()}
-        self.status_text = self.fig.text(
-            0.99, 0.03, "", ha="right", va="center", fontsize=9, family="monospace"
-        )
-        self._render_status()
+
+        # only the selected mode's attributes are populated; the others stay None
+        self.ax_hg = self.ax_lg = self.ax_pha_hg = self.ax_pha_lg = None
+        self.hg_bars = self.lg_bars = None
+        self.hg_peak_annotation = self.lg_peak_annotation = None
+        self.pha_hg_line = self.pha_lg_line = None
+        self.pha_hg_peak_annotation = self.pha_lg_peak_annotation = None
+        self.status_text = None
+
+        if mode == "lpc":
+            self.ax_hg, self.ax_lg = axes
+            self.hg_bins = [0] * N_SIZE_BINS
+            self.lg_bins = [0] * N_SIZE_BINS
+            self.hg_record = None
+            self.lg_record = None
+            # fallback frame counters, used when a line format doesn't carry its own
+            # record number (e.g. the legacy 'High Gain Bins: ...' text format)
+            self.hg_frame_count = 0
+            self.lg_frame_count = 0
+            self.hg_bars = self.ax_hg.bar(range(N_SIZE_BINS), self.hg_bins, color="tab:blue")
+            self.lg_bars = self.ax_lg.bar(range(N_SIZE_BINS), self.lg_bins, color="tab:orange")
+            for ax, title, sizes in (
+                (self.ax_hg, "StratoLPC High Gain Size Bins", HG_BIN_SIZES),
+                (self.ax_lg, "StratoLPC Low Gain Size Bins", LG_BIN_SIZES),
+            ):
+                ax.set_title(title)
+                ax.set_xlabel("Size bin (nm)")
+                ax.set_xticks(range(N_SIZE_BINS))
+                ax.set_xticklabels([str(v) for v in sizes], rotation=90, fontsize=7)
+                ax.set_ylabel("Counts")
+                ax.set_ylim(0.5, 10)  # placeholder range so switching to log scale below has something positive to work with
+                ax.set_yscale("log")
+        else:
+            # PHA raw spectra: lines are created lazily once we know how many elements they have
+            self.ax_pha_hg, self.ax_pha_lg = axes
+            for ax, title in ((self.ax_pha_hg, "PHA Raw High Gain Spectrum"), (self.ax_pha_lg, "PHA Raw Low Gain Spectrum")):
+                ax.set_title(title + " (no data yet)")
+                ax.set_xlabel("Raw ADC bin (reversed)")
+                ax.set_ylabel("Counts")
+
+        # bottom strip: buttons (+ status bar in lpc mode); pha mode also leaves
+        # room at the top for its two-line titles
+        self.fig.tight_layout(rect=(0, 0.07, 1, 1 if mode == "lpc" else 0.94))
+        if mode == "lpc":
+            # status bar: latest value of each housekeeping line (STATUS_FIELDS);
+            # these lines only exist on the LPC console, so it's not shown for pha
+            self.status = {key: "--" for key in STATUS_FIELDS.values()}
+            self.status_text = self.fig.text(
+                0.99, 0.03, "", ha="right", va="center", fontsize=9, family="monospace"
+            )
+            self._render_status()
 
     def reset(self):
         """Return the figure to its start-up (no data yet) state, e.g. for a playback restart."""
-        for bars, ax, title in (
-            (self.hg_bars, self.ax_hg, "StratoLPC High Gain Size Bins"),
-            (self.lg_bars, self.ax_lg, "StratoLPC Low Gain Size Bins"),
-        ):
-            for bar in bars:
-                bar.set_height(0)
-            ax.set_ylim(0.5, 10)
-            ax.set_title(title)
-        self.hg_bins = [0] * N_SIZE_BINS
-        self.lg_bins = [0] * N_SIZE_BINS
-        self.hg_record = self.lg_record = None
-        self.hg_frame_count = self.lg_frame_count = 0
-        for attr in ("hg_peak_annotation", "lg_peak_annotation"):
-            old = getattr(self, attr)
-            if old is not None:
-                try:
-                    old.remove()
-                except (ValueError, NotImplementedError):
-                    pass
-                setattr(self, attr, None)
-
-        # ax.clear() also discards the PHA lines and annotations
-        for ax, title in ((self.ax_pha_hg, "PHA Raw High Gain Spectrum"), (self.ax_pha_lg, "PHA Raw Low Gain Spectrum")):
-            ax.clear()
-            ax.set_title(title + " (no data yet)")
-            ax.set_xlabel("Raw ADC bin (reversed)")
-            ax.set_ylabel("Counts")
-        self.pha_hg_line = self.pha_lg_line = None
-        self.pha_hg_peak_annotation = self.pha_lg_peak_annotation = None
-
-        self.status = {key: "--" for key in STATUS_FIELDS.values()}
-        self._render_status()
+        if self.mode == "lpc":
+            for bars, ax, title in (
+                (self.hg_bars, self.ax_hg, "StratoLPC High Gain Size Bins"),
+                (self.lg_bars, self.ax_lg, "StratoLPC Low Gain Size Bins"),
+            ):
+                for bar in bars:
+                    bar.set_height(0)
+                ax.set_ylim(0.5, 10)
+                ax.set_title(title)
+            self.hg_bins = [0] * N_SIZE_BINS
+            self.lg_bins = [0] * N_SIZE_BINS
+            self.hg_record = self.lg_record = None
+            self.hg_frame_count = self.lg_frame_count = 0
+            for attr in ("hg_peak_annotation", "lg_peak_annotation"):
+                old = getattr(self, attr)
+                if old is not None:
+                    try:
+                        old.remove()
+                    except (ValueError, NotImplementedError):
+                        pass
+                    setattr(self, attr, None)
+            self.status = {key: "--" for key in STATUS_FIELDS.values()}
+            self._render_status()
+        else:
+            # ax.clear() also discards the PHA lines and annotations
+            for ax, title in ((self.ax_pha_hg, "PHA Raw High Gain Spectrum"), (self.ax_pha_lg, "PHA Raw Low Gain Spectrum")):
+                ax.clear()
+                ax.set_title(title + " (no data yet)")
+                ax.set_xlabel("Raw ADC bin (reversed)")
+                ax.set_ylabel("Counts")
+            self.pha_hg_line = self.pha_lg_line = None
+            self.pha_hg_peak_annotation = self.pha_lg_peak_annotation = None
         self.dirty = True
 
     def update_size_bins(self, tag, record, bins):
@@ -450,8 +470,8 @@ class BinPlotter:
         ax.set_ylim(0, max(values + [1]) * 1.18)  # headroom for the peak label
         title = f"{label}, total counts: {sum(values)}"
         if extra_title:
-            title += f" ({extra_title})"
-        ax.set_title(title)
+            title += f"\n{extra_title}"  # second line: too long to fit beside the other panel
+        ax.set_title(title, fontsize=10)
 
         self._update_peak_label(ax, xs, reversed_values, original_indices, peak_attr)
         self._flush()
@@ -480,45 +500,53 @@ class BinPlotter:
 
 
 def dispatch_line(plotter, line):
-    """Parse one console line and update the plot; echo it if it isn't plottable."""
+    """
+    Parse one console line and update the plot; echo it if it isn't plottable.
+    Data that belongs to the other plot mode (LPC bins/housekeeping on a --pha
+    plot, PHA spectra on an LPC plot) is recognized but silently dropped, since
+    the PHA lines in particular are huge.
+    """
     raw = line
     # logger-saved files prefix each line with '[HH:MM:SS.mmm] '; drop it
     if line.startswith("["):
         end = line.find("] ")
         if 0 < end <= 16:
             line = line[end + 2:]
+    lpc = plotter.mode == "lpc"
     label, sep, value = line.partition(":")
     if sep and label in STATUS_FIELDS and value.strip():
-        return plotter.update_status(STATUS_FIELDS[label], value.strip())
+        if lpc:
+            plotter.update_status(STATUS_FIELDS[label], value.strip())
+        return
     # cheap prefix checks first so ordinary log lines skip all the parsers
     if line.startswith("HGBINS,"):
         result = parse_size_bins_line(line, "HGBINS")
         if result is not None:
-            return plotter.update_size_bins("HGBINS", *result)
+            return plotter.update_size_bins("HGBINS", *result) if lpc else None
     elif line.startswith("LGBINS,"):
         result = parse_size_bins_line(line, "LGBINS")
         if result is not None:
-            return plotter.update_size_bins("LGBINS", *result)
+            return plotter.update_size_bins("LGBINS", *result) if lpc else None
     elif line.startswith("High Gain Bins:"):
         result = parse_labeled_bins_line(line, "High Gain Bins")
         if result is not None:
-            return plotter.update_size_bins("HGBINS", None, result)
+            return plotter.update_size_bins("HGBINS", None, result) if lpc else None
     elif line.startswith("Low Gain Bins:"):
         result = parse_labeled_bins_line(line, "Low Gain Bins")
         if result is not None:
-            return plotter.update_size_bins("LGBINS", None, result)
+            return plotter.update_size_bins("LGBINS", None, result) if lpc else None
     elif line.startswith("HG_Small_Array:"):
         result = parse_pha_debug_array_line(line, "HG_Small_Array")
         if result is not None:
-            return plotter.update_pha_channel("hg", result)
+            return None if lpc else plotter.update_pha_channel("hg", result)
     elif line.startswith("LG_Small_Array:"):
         result = parse_pha_debug_array_line(line, "LG_Small_Array")
         if result is not None:
-            return plotter.update_pha_channel("lg", result)
+            return None if lpc else plotter.update_pha_channel("lg", result)
     else:
         result = parse_pha_line(line)
         if result is not None:
-            return plotter.update_pha(result)
+            return None if lpc else plotter.update_pha(result)
     # pass through anything else so you can still see instrument logs
     print(raw.rstrip())
 
@@ -526,9 +554,10 @@ def dispatch_line(plotter, line):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", help="Serial port (e.g. /dev/tty.usbmodem1234 or COM5)")
-    parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output)")
+    parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output with --pha)")
     parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port; use - to read from stdin")
     parser.add_argument("--speed", type=float, default=10.0, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Use 0 for as fast as possible. Default: 10. Can also be changed during playback with the Speed box")
+    parser.add_argument("--pha", action="store_true", help="Plot the PHA board's raw high/low gain spectra instead of the default StratoLPC size bins")
     args = parser.parse_args()
 
     if not args.file and not args.port:
@@ -537,7 +566,7 @@ def main():
     if args.file and args.speed < 0:
         parser.error("--speed must not be negative (0 = unpaced)")
 
-    plotter = BinPlotter()
+    plotter = BinPlotter("pha" if args.pha else "lpc")
 
     # Read the port/file on a background thread so the GUI never blocks on I/O.
     # The bounded queue throttles file replay (reader blocks when it's full)

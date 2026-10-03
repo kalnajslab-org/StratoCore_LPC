@@ -1,6 +1,6 @@
 # plot-lpc-bins
 
-Live plots of Strateole 2 LPC data from the instrument's serial console or from a saved console log: the StratoLPC high-gain and low-gain size bins, plus the PHA board's raw pulse-height spectra, with a status bar of housekeeping values.
+Live plots of Strateole 2 LPC data from the instrument's serial console or from a saved console log. By default it shows the StratoLPC high-gain and low-gain size bins, with a status bar of housekeeping values. With `--pha` it shows the PHA board's raw high-gain and low-gain pulse-height spectra instead.
 
 ![plot-lpc-bins replaying an LPC debug log](lpc-plot-bins.png)
 
@@ -47,29 +47,43 @@ plot-lpc-bins --port /dev/tty.usbmodemXXXX --baud 115200
 
 # or replay a saved console log (paced at 10x real time by default)
 plot-lpc-bins --file LPC_DBG_2026-10-02T11-00-32.txt
+
+# PHA raw spectra instead of the LPC size bins: add --pha
+plot-lpc-bins --pha --port /dev/tty.usbmodemYYYY --baud 115200
 ```
 
 The command is `plot-lpc-bins` (hyphens). `python -m plot_lpc_bins` works too.
+
+## Choosing the plots
+
+Only one pair of plots is shown at a time:
+
+| Option | Plots |
+|---|---|
+| (default) | StratoLPC high-gain and low-gain size bins, plus the housekeeping status bar |
+| `--pha` | PHA raw high-gain and low-gain pulse-height spectra |
+
+Data for the plot you didn't select is recognized and silently dropped. Lines that are neither are printed to the terminal.
 
 ## Input sources
 
 | Option | Reads from |
 |---|---|
-| `--port PORT [--baud N]` | A live serial port (default 115200 baud; use 500000 for the PHA's own Serial1 output). |
+| `--port PORT [--baud N]` | A live serial port (default 115200 baud; use 500000 for the PHA's own Serial1 output, with `--pha`). |
 | `--file PATH` | A saved log file, replayed. |
 | `--file -` | Standard input, e.g. `cat log.txt \| plot-lpc-bins --file -`. |
 
 Lines are auto-detected one at a time, so any mix of the formats below can appear on the same stream. A `[HH:MM:SS.mmm] ` timestamp prefix, as written by the logger, is ignored.
 
-| Format | Where it comes from | Plotted in |
+| Format | Where it comes from | Plot |
 |---|---|---|
-| `HGBINS,<record>,<16 values>` and `LGBINS,<record>,<16 values>` | LPC board console (`StratoLPC::fillBins()`) | Top panels |
-| `High Gain Bins: ...` / `Low Gain Bins: ...` | Older plain-text version of the same 16 bins | Top panels |
-| `HG_Small_Array: ...` / `LG_Small_Array: ...` | PHA board USB console, after sending `#hgprint,1` and `#lgprint,1` to it | Bottom panels |
-| `<timestamp>,<laserI>,<threshold>,<pulse_count>,<256 HG>,<256 LG>,E` | PHA board Serial1 line to the main board (500000 baud) | Bottom panels |
-| `Pulse Count:`, `Flow:`, `Pump1 T:`, `Pump2 T:`, `Inlet T:` | LPC board console | Status bar |
+| `HGBINS,<record>,<16 values>` and `LGBINS,<record>,<16 values>` | LPC board console (`StratoLPC::fillBins()`) | Default (LPC) |
+| `High Gain Bins: ...` / `Low Gain Bins: ...` | Older plain-text version of the same 16 bins | Default (LPC) |
+| `HG_Small_Array: ...` / `LG_Small_Array: ...` | PHA board USB console, after sending `#hgprint,1` and `#lgprint,1` to it | `--pha` |
+| `<timestamp>,<laserI>,<threshold>,<pulse_count>,<256 HG>,<256 LG>,E` | PHA board Serial1 line to the main board (500000 baud) | `--pha` |
+| `Pulse Count:`, `Flow:`, `Pump1 T:`, `Pump2 T:`, `Inlet T:` | LPC board console | Default (LPC), status bar |
 
-Any other line is printed to the terminal unchanged, so you can still see the instrument's log messages. The five housekeeping lines go to the status bar and are not echoed.
+Any other line is printed to the terminal unchanged, so you can still see the instrument's log messages. The five housekeeping lines go to the status bar (default plot only) and are not echoed.
 
 ## Playback controls
 
@@ -96,7 +110,7 @@ The size-bin panels have 16 bars each. The x-axis is the bin's lower diameter ed
 
 The last low-gain bin is always empty: its raw-array range in the firmware is 255 to 255, which is why 24000 appears twice.
 
-The PHA panels stay empty ("no data yet") unless the stream includes the PHA's raw spectra. They are drawn with the largest pulse on the right and the bin nearest the trigger threshold on the left.
+With `--pha`, the two panels show the PHA's raw 256-bin spectra, drawn with the largest pulse on the right and the bin nearest the trigger threshold on the left. They stay empty ("no data yet") until a spectrum arrives; for the PHA's USB console, send `#hgprint,1` and `#lgprint,1` to it first. When the spectra come from the Serial1 line, each panel's title also shows the timestamp, pulse count, threshold and laser current.
 
 ## Testing without hardware
 
