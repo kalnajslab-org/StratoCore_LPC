@@ -85,6 +85,12 @@ Lines are auto-detected one at a time, so any mix of the formats below can appea
 
 Any other line is printed to the terminal unchanged, so you can still see the instrument's log messages. The five housekeeping lines go to the status bar (default plot only) and are not echoed.
 
+## Capturing live data
+
+When reading from a live `--port`, everything that arrives is also saved to a file in the directory you started the program from, named like the LPC debug logs: `LPC_capture_<YYYY-MM-DDTHH-MM-SS>.txt` for the default plots, or `PHA_capture_<...>.txt` with `--pha`. The file is written as it arrives (not just at exit), and every line carries the same `[HH:MM:SS.mmm]` prefix as the `LPC_DBG_*.txt` logs, so a capture can be replayed later with `--file` and `--speed`.
+
+The file's full path is shown in a box at the bottom left of the window. The **Copy** button next to it copies the full path to the clipboard (it uses `pbcopy` on macOS, `clip` on Windows, and `wl-copy`, `xclip` or `xsel` on Linux). The path is also printed to the terminal when you close the window. Replaying a file with `--file` does not create a capture.
+
 ## Playback controls
 
 These appear when you use `--file`. A live `--port` has no controls, because pausing a serial stream would lose data.

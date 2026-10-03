@@ -61,15 +61,22 @@ Usage:
     # replay a timestamped log at 10x real time (1 = real time, 0.5 = half speed)
     python3 plot_lpc_bins.py --file LPC_DBG_log.txt --speed 10
 
+A live --port is also recorded to LPC_capture_<timestamp>.txt (PHA_capture_<timestamp>.txt with
+--pha) in the current directory; the path is shown at the bottom of the window
+with a Copy button.
+
 Requires: pyserial, matplotlib
     pip install pyserial matplotlib
 """
 
 import argparse
+import datetime
 import importlib.metadata
 import math
+import os
 import queue
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -265,6 +272,74 @@ def window_title():
         return "plot-lpc-bins"
 
 
+class Capture:
+    """
+    Records everything arriving on a live port to <PREFIX>_capture_<YYYY-MM-DDTHH-MM-SS>.txt in
+    the current directory (PREFIX is LPC or PHA, mirroring the LPC_DBG_<timestamp>.txt
+    debug logs). Each line gets the same '[HH:MM:SS.mmm] ' prefix those logs use, so a
+    capture can be replayed later with --file (and --speed).
+    """
+
+    def __init__(self, prefix, args):
+        now = datetime.datetime.now()
+        self.path = os.path.abspath(f"{prefix}_capture_{now.strftime('%Y-%m-%dT%H-%M-%S')}.txt")
+        self._lock = threading.Lock()
+        self._f = open(self.path, "w", buffering=1)  # line buffered: always current on disk
+        self._f.write(f"{prefix} Capture: {now.strftime('%Y-%m-%d at %H:%M:%S')} ({args.port}, {args.baud} baud)\n\n")
+
+    def write(self, line):
+        stamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        with self._lock:
+            if self._f is not None:
+                self._f.write(f"[{stamp}] {line.rstrip(chr(13) + chr(10))}\n")
+
+    def close(self):
+        with self._lock:
+            if self._f is not None:
+                self._f.close()
+                self._f = None
+
+
+def add_text_box(fig, rect, text):
+    """
+    Add a bordered, read-only text box to the bottom strip. If the text doesn't fit
+    the box (at the window's initial size) its start is trimmed to "..." so the end
+    -- the file name -- stays visible.
+    """
+    ax = fig.add_axes(rect)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    # clip_on so the text can never spill out of the box if the window is shrunk
+    label = ax.text(0.01, 0.5, text, va="center", ha="left", fontsize=8, family="monospace", clip_on=True)
+    try:
+        renderer = fig.canvas.get_renderer()
+    except AttributeError:  # backends without get_renderer()
+        renderer = fig._get_renderer()
+    room = ax.get_window_extent(renderer).width * 0.98 - 8  # pixels, minus the left inset
+    shown = text
+    while label.get_window_extent(renderer).width > room and len(shown) > 8:
+        shown = shown[1:]
+        label.set_text("..." + shown)
+    return ax
+
+
+def copy_to_clipboard(text):
+    """Put text on the system clipboard using the platform's tool; return True on success."""
+    if sys.platform == "darwin":
+        candidates = [["pbcopy"]]
+    elif sys.platform.startswith("win"):
+        candidates = [["clip"]]
+    else:
+        candidates = [["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]]
+    for cmd in candidates:
+        try:
+            subprocess.run(cmd, input=text.encode(), check=True, timeout=5)
+            return True
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False
+
+
 class BinPlotter:
     """Owns the figure and knows how to redraw whichever bin arrays have new data."""
 
@@ -314,15 +389,16 @@ class BinPlotter:
                 ax.set_xlabel("Raw ADC bin (reversed)")
                 ax.set_ylabel("Counts")
 
-        # bottom strip: buttons (+ status bar in lpc mode); pha mode also leaves
-        # room at the top for its two-line titles
-        self.fig.tight_layout(rect=(0, 0.07, 1, 1 if mode == "lpc" else 0.94))
+        # bottom strip: a row of buttons + file path (y 0.01-0.055), with the
+        # status bar in a row above it in lpc mode; pha mode also leaves room at
+        # the top for its two-line titles
+        self.fig.tight_layout(rect=(0, 0.115 if mode == "lpc" else 0.07, 1, 1 if mode == "lpc" else 0.94))
         if mode == "lpc":
             # status bar: latest value of each housekeeping line (STATUS_FIELDS);
             # these lines only exist on the LPC console, so it's not shown for pha
             self.status = {key: "--" for key in STATUS_FIELDS.values()}
             self.status_text = self.fig.text(
-                0.99, 0.03, "", ha="right", va="center", fontsize=9, family="monospace"
+                0.99, 0.085, "", ha="right", va="center", fontsize=9, family="monospace"
             )
             self._render_status()
 
@@ -568,6 +644,16 @@ def main():
 
     plotter = BinPlotter("pha" if args.pha else "lpc")
 
+    # Live ports are recorded to a file in the current directory; replays aren't
+    capture = None
+    capture_error = None
+    if not args.file:
+        try:
+            capture = Capture("PHA" if args.pha else "LPC", args)
+        except OSError as e:
+            capture_error = str(e)
+            print(f"warning: not capturing data: {e}", file=sys.stderr)
+
     # Read the port/file on a background thread so the GUI never blocks on I/O.
     # The bounded queue throttles file replay (reader blocks when it's full)
     # while a live port just keeps filling it.
@@ -583,6 +669,8 @@ def main():
 
         try:
             for line in make_line_source(args):
+                if capture is not None:
+                    capture.write(line)  # on the reader thread, so a slow GUI never loses data
                 while not running.wait(0.2):  # hold here while paused
                     if superseded():
                         return
@@ -697,6 +785,38 @@ def main():
 
         plotter.fig.canvas.mpl_connect("key_press_event", on_key)
 
+        # full path of the file being replayed, where a live port shows its
+        # capture path (after the Speed box, out to the right edge)
+        add_text_box(
+            plotter.fig, [0.35, 0.01, 0.64, 0.045],
+            "stdin" if args.file == "-" else os.path.abspath(args.file),
+        )
+
+    # Capture file path box + Copy button (live ports only), in the bottom strip
+    if not args.file:
+        shown = capture.path if capture is not None else f"not capturing: {capture_error}"
+        add_text_box(plotter.fig, [0.08, 0.01, 0.91, 0.045], shown)
+
+        copy_button = Button(plotter.fig.add_axes([0.01, 0.01, 0.06, 0.045]), "Copy")
+
+        def reset_copy_label():
+            copy_button.label.set_text("Copy")
+            plotter.fig.canvas.draw_idle()
+
+        def on_copy(_event=None):
+            if capture is None:
+                return
+            copy_button.label.set_text("Copied!" if copy_to_clipboard(capture.path) else "Failed")
+            plotter.fig.canvas.draw_idle()
+            revert = plotter.fig.canvas.new_timer(interval=1500)
+            revert.single_shot = True
+            revert.add_callback(reset_copy_label)
+            revert.start()
+            copy_timers.append(revert)  # keep a reference so it isn't collected before firing
+
+        copy_timers = []
+        copy_button.on_clicked(on_copy)
+
     timer = plotter.fig.canvas.new_timer(interval=50)
     timer.add_callback(on_timer)
     timer.start()
@@ -707,6 +827,9 @@ def main():
         pass
     finally:
         stop.set()
+        if capture is not None:
+            capture.close()
+            print(f"Captured data saved to {capture.path}")
 
 
 if __name__ == "__main__":
