@@ -467,11 +467,9 @@ def main():
 
     if not args.file and not args.port:
         parser.error("either --port or --file is required")
-    if args.speed is not None:
-        if not args.file:
-            parser.error("--speed only applies with --file")
-        if args.speed <= 0:
-            parser.error("--speed must be greater than 0")
+    # --speed only means something for file playback; silently ignored otherwise
+    if args.file and args.speed is not None and args.speed <= 0:
+        parser.error("--speed must be greater than 0")
 
     plotter = BinPlotter()
 
