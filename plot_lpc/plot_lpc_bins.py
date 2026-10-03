@@ -45,12 +45,19 @@ Usage:
     # replay a saved log instead of a live port (format is auto-detected either way)
     python3 plot_lpc_bins.py --file console_log.txt
 
+    # replay a timestamped log at 10x real time (1 = real time, 0.5 = half speed)
+    python3 plot_lpc_bins.py --file LPC_DBG_log.txt --speed 10
+
 Requires: pyserial, matplotlib
     pip install pyserial matplotlib
 """
 
 import argparse
+import queue
+import re
 import sys
+import threading
+import time
 
 import matplotlib.pyplot as plt
 
@@ -60,6 +67,12 @@ except ImportError:
     serial = None
 
 N_SIZE_BINS = 16  # StratoLPC's downsampled size bins (HGBins/LGBins)
+
+# --speed replay skips the waiting time while the log says the instrument is in
+# one of these states (or before any state is seen): no bins are produced then,
+# and SB is entered silently from FL_IDLE so it looks like a long FL_IDLE.
+ENTERING_RE = re.compile(r"NOM: Entering (\w+)")
+IDLE_STATES = {None, "FL", "FL_IDLE"}
 
 
 def parse_size_bins_line(line, tag):
@@ -160,11 +173,40 @@ def parse_pha_debug_array_line(line, label):
     return values or None
 
 
+def parse_log_timestamp(line):
+    """Return seconds since midnight for a '[HH:MM:SS.mmm] ...' log line, else None."""
+    if len(line) < 14 or line[0] != "[" or line[13] != "]":
+        return None
+    try:
+        return int(line[1:3]) * 3600 + int(line[4:6]) * 60 + float(line[7:13])
+    except ValueError:
+        return None
+
+
 def make_line_source(args):
     """Yield successive decoded lines from either a live serial port or a log file."""
     if args.file:
+        prev_ts = None  # previous line's log timestamp, in seconds
+        t_prev_wall = None
+        state = None  # instrument state from the log's 'Entering <state>' lines
         with open(args.file, "r", errors="replace") as f:
             for line in f:
+                if args.speed:
+                    ts = parse_log_timestamp(line)
+                    if ts is not None:
+                        if prev_ts is not None:
+                            # the gap belongs to the state we were in on the previous
+                            # line; skip it while idle/standby since nothing is plotted
+                            if state not in IDLE_STATES:
+                                dt = (ts - prev_ts) % 86400  # tolerate midnight wrap
+                                wait = dt / args.speed - (time.monotonic() - t_prev_wall)
+                                if wait > 0:
+                                    time.sleep(wait)
+                        prev_ts = ts
+                        t_prev_wall = time.monotonic()
+                    m = ENTERING_RE.search(line)
+                    if m:
+                        state = m.group(1)
                 yield line
     else:
         if serial is None:
@@ -214,8 +256,8 @@ class BinPlotter:
             ax.set_xlabel("Raw ADC bin (reversed)")
             ax.set_ylabel("Counts")
 
+        self.dirty = False
         self.fig.tight_layout()
-        self.fig.show()
 
     def update_size_bins(self, tag, record, bins):
         if tag == "HGBINS":
@@ -319,8 +361,55 @@ class BinPlotter:
         self._flush()
 
     def _flush(self):
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.flush_events()
+        # just mark dirty; the GUI timer redraws once per tick regardless of
+        # how many lines arrived since the last one
+        self.dirty = True
+
+    def redraw_if_dirty(self):
+        if self.dirty:
+            self.dirty = False
+            self.fig.canvas.draw_idle()
+
+
+def dispatch_line(plotter, line):
+    """Parse one console line and update the plot; echo it if it isn't plottable."""
+    raw = line
+    # logger-saved files prefix each line with '[HH:MM:SS.mmm] '; drop it
+    if line.startswith("["):
+        end = line.find("] ")
+        if 0 < end <= 16:
+            line = line[end + 2:]
+    # cheap prefix checks first so ordinary log lines skip all the parsers
+    if line.startswith("HGBINS,"):
+        result = parse_size_bins_line(line, "HGBINS")
+        if result is not None:
+            return plotter.update_size_bins("HGBINS", *result)
+    elif line.startswith("LGBINS,"):
+        result = parse_size_bins_line(line, "LGBINS")
+        if result is not None:
+            return plotter.update_size_bins("LGBINS", *result)
+    elif line.startswith("High Gain Bins:"):
+        result = parse_labeled_bins_line(line, "High Gain Bins")
+        if result is not None:
+            return plotter.update_size_bins("HGBINS", None, result)
+    elif line.startswith("Low Gain Bins:"):
+        result = parse_labeled_bins_line(line, "Low Gain Bins")
+        if result is not None:
+            return plotter.update_size_bins("LGBINS", None, result)
+    elif line.startswith("HG_Small_Array:"):
+        result = parse_pha_debug_array_line(line, "HG_Small_Array")
+        if result is not None:
+            return plotter.update_pha_channel("hg", result)
+    elif line.startswith("LG_Small_Array:"):
+        result = parse_pha_debug_array_line(line, "LG_Small_Array")
+        if result is not None:
+            return plotter.update_pha_channel("lg", result)
+    else:
+        result = parse_pha_line(line)
+        if result is not None:
+            return plotter.update_pha(result)
+    # pass through anything else so you can still see instrument logs
+    print(raw.rstrip())
 
 
 def main():
@@ -328,47 +417,62 @@ def main():
     parser.add_argument("--port", help="Serial port (e.g. /dev/tty.usbmodem1234 or COM5)")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output)")
     parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port")
+    parser.add_argument("--speed", type=float, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Default: as fast as possible")
     args = parser.parse_args()
 
     if not args.file and not args.port:
         parser.error("either --port or --file is required")
+    if args.speed is not None:
+        if not args.file:
+            parser.error("--speed only applies with --file")
+        if args.speed <= 0:
+            parser.error("--speed must be greater than 0")
 
-    plt.ion()
     plotter = BinPlotter()
 
+    # Read the port/file on a background thread so the GUI never blocks on I/O.
+    # The bounded queue throttles file replay (reader blocks when it's full)
+    # while a live port just keeps filling it.
+    lines = queue.Queue(maxsize=2000)
+    stop = threading.Event()
+
+    def reader():
+        try:
+            for line in make_line_source(args):
+                while not stop.is_set():
+                    try:
+                        lines.put(line, timeout=0.2)
+                        break
+                    except queue.Full:
+                        pass
+                if stop.is_set():
+                    return
+        except Exception as e:  # e.g. serial port unplugged
+            lines.put(f"[reader stopped: {e}]\n")
+
+    threading.Thread(target=reader, daemon=True).start()
+
+    def on_timer():
+        # process whatever has arrived, within a time budget, then redraw once
+        deadline = time.monotonic() + 0.03
+        while time.monotonic() < deadline:
+            try:
+                line = lines.get_nowait()
+            except queue.Empty:
+                break
+            dispatch_line(plotter, line)
+        plotter.redraw_if_dirty()
+
+    timer = plotter.fig.canvas.new_timer(interval=50)
+    timer.add_callback(on_timer)
+    timer.start()
+
     try:
-        for line in make_line_source(args):
-            hg_result = parse_size_bins_line(line, "HGBINS")
-            lg_result = parse_size_bins_line(line, "LGBINS")
-            hg_labeled = parse_labeled_bins_line(line, "High Gain Bins")
-            lg_labeled = parse_labeled_bins_line(line, "Low Gain Bins")
-            pha_result = parse_pha_line(line)
-            pha_hg_debug = parse_pha_debug_array_line(line, "HG_Small_Array")
-            pha_lg_debug = parse_pha_debug_array_line(line, "LG_Small_Array")
-
-            if hg_result is not None:
-                plotter.update_size_bins("HGBINS", *hg_result)
-            elif lg_result is not None:
-                plotter.update_size_bins("LGBINS", *lg_result)
-            elif hg_labeled is not None:
-                plotter.update_size_bins("HGBINS", None, hg_labeled)
-            elif lg_labeled is not None:
-                plotter.update_size_bins("LGBINS", None, lg_labeled)
-            elif pha_result is not None:
-                plotter.update_pha(pha_result)
-            elif pha_hg_debug is not None:
-                plotter.update_pha_channel("hg", pha_hg_debug)
-            elif pha_lg_debug is not None:
-                plotter.update_pha_channel("lg", pha_lg_debug)
-            else:
-                # pass through anything else so you can still see instrument logs
-                print(line.rstrip())
-
-            # give the GUI event loop a chance to process, mainly useful when
-            # replaying a file so fast that the window never repaints
-            plt.pause(0.001)
+        plt.show()
     except KeyboardInterrupt:
         pass
+    finally:
+        stop.set()
 
 
 if __name__ == "__main__":
