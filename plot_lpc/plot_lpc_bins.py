@@ -79,6 +79,12 @@ N_SIZE_BINS = 16  # StratoLPC's downsampled size bins (HGBins/LGBins)
 ENTERING_RE = re.compile(r"NOM: Entering (\w+)")
 IDLE_STATES = {None, "FL", "FL_IDLE"}
 
+# Size (nm) of each StratoLPC size bin, as in the LPC data file's column header
+# (HG bins 0-15, then LG bins 0-15). Bin 15 of the LG set is always empty in
+# firmware (its raw-array range is 255..255), hence the repeated 24000.
+HG_BIN_SIZES = [275, 300, 325, 350, 375, 400, 450, 500, 550, 600, 650, 700, 750, 800, 900, 1000]
+LG_BIN_SIZES = [1200, 1400, 1600, 1800, 2000, 2500, 3000, 3500, 4000, 6000, 8000, 10000, 13000, 16000, 24000, 24000]
+
 # housekeeping lines shown in the status bar: console label -> status key
 STATUS_FIELDS = {
     "Pulse Count": "pulses",
@@ -259,9 +265,14 @@ class BinPlotter:
         self.lg_bars = self.ax_lg.bar(range(N_SIZE_BINS), self.lg_bins, color="tab:orange")
         self.hg_peak_annotation = None
         self.lg_peak_annotation = None
-        for ax, title in ((self.ax_hg, "StratoLPC High Gain Size Bins"), (self.ax_lg, "StratoLPC Low Gain Size Bins")):
+        for ax, title, sizes in (
+            (self.ax_hg, "StratoLPC High Gain Size Bins", HG_BIN_SIZES),
+            (self.ax_lg, "StratoLPC Low Gain Size Bins", LG_BIN_SIZES),
+        ):
             ax.set_title(title)
-            ax.set_xlabel("Size bin")
+            ax.set_xlabel("Size bin (nm)")
+            ax.set_xticks(range(N_SIZE_BINS))
+            ax.set_xticklabels([str(v) for v in sizes], rotation=90, fontsize=7)
             ax.set_ylabel("Counts")
             ax.set_ylim(0.5, 10)  # placeholder range so switching to log scale below has something positive to work with
             ax.set_yscale("log")
@@ -327,11 +338,13 @@ class BinPlotter:
             record = record if record is not None else self.hg_frame_count
             self.hg_record, self.hg_bins = record, bins
             bars, ax, label, peak_attr = self.hg_bars, self.ax_hg, "StratoLPC High Gain Size Bins", "hg_peak_annotation"
+            sizes = HG_BIN_SIZES
         else:
             self.lg_frame_count += 1
             record = record if record is not None else self.lg_frame_count
             self.lg_record, self.lg_bins = record, bins
             bars, ax, label, peak_attr = self.lg_bars, self.ax_lg, "StratoLPC Low Gain Size Bins", "lg_peak_annotation"
+            sizes = LG_BIN_SIZES
 
         n = len(bins)
         original_indices = list(range(n))
@@ -347,7 +360,7 @@ class BinPlotter:
         ax.set_ylim(0.5, 10 ** ((log_peak + 0.15 * math.log10(0.5) * -1) / 0.85))
         ax.set_title(f"{label}, total counts: {sum(bins)} (frame {record})")
 
-        self._update_peak_label(ax, xs, bins, original_indices, peak_attr)
+        self._update_peak_label(ax, xs, bins, original_indices, peak_attr, sizes)
         self._flush()
 
     def update_pha(self, sample):
@@ -359,7 +372,7 @@ class BinPlotter:
         self.update_pha_channel("hg", sample["hg"], extra)
         self.update_pha_channel("lg", sample["lg"], extra)
 
-    def _update_peak_label(self, ax, xs, ys, original_indices, attr_name):
+    def _update_peak_label(self, ax, xs, ys, original_indices, attr_name, bin_sizes=None):
         """(Re)draw a 'peak: bin N (count)' annotation at the tallest point, removing any prior one."""
         old = getattr(self, attr_name, None)
         if old is not None:
@@ -374,13 +387,16 @@ class BinPlotter:
 
         peak_pos = max(range(len(ys)), key=lambda i: ys[i])
         peak_x, peak_y, peak_bin = xs[peak_pos], ys[peak_pos], original_indices[peak_pos]
+        size_note = ""
+        if bin_sizes is not None and peak_bin < len(bin_sizes):
+            size_note = f" ({bin_sizes[peak_bin]} nm)"
         # Label sits just above the peak with an arrow pointing down to it; the
         # callers leave headroom in the y-limits so it stays inside the axes.
         # Near either edge, anchor the text to that side so it doesn't spill out.
         frac = peak_x / max(len(ys) - 1, 1)
         ha = "left" if frac < 0.1 else "right" if frac > 0.9 else "center"
         annotation = ax.annotate(
-            f"peak: bin {peak_bin}\n({peak_y} counts)",
+            f"peak: bin {peak_bin}{size_note}\n({peak_y} counts)",
             xy=(peak_x, peak_y),
             xytext=(0, 8),
             textcoords="offset points",
