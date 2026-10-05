@@ -893,7 +893,14 @@ void StratoLPC::rs41Action() {
         _rs41_samples[_n_rs41_samples].tdry = (rs41_data.air_temp_degC+100)*100;
         _rs41_samples[_n_rs41_samples].humidity = rs41_data.humdity_percent*100;
         _rs41_samples[_n_rs41_samples].tsensor = (rs41_data.hsensor_temp_degC+100)*100;
-        _rs41_samples[_n_rs41_samples].pres = rs41_data.pres_mb*50;
+        // Pressure: ln(P) encoding, same as the RPU/ECU: (ln(mb)-3.4012)*18533.04
+        // spans ~30-1030 mb in 16 bits. Decode: mb = exp(raw/18533.04 + 3.4012).
+        if (rs41_data.pres_mb <= 0.0) {
+            _rs41_samples[_n_rs41_samples].pres = 0;
+        } else {
+            float pres_raw = (logf(rs41_data.pres_mb) - 3.4012) * 18533.04;
+            _rs41_samples[_n_rs41_samples].pres = (pres_raw < 0.0) ? 0 : (pres_raw > 65535.0) ? 65535 : pres_raw;
+        }
         _rs41_samples[_n_rs41_samples].error = rs41_data.module_error;
         // Heading: (hdg / 360.0) * 255.0, clamped to 0-255 (same scaling as the RPU)
         if (rs41_data.heading_deg < 0.0) {
