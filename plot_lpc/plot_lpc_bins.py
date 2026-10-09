@@ -627,17 +627,47 @@ def dispatch_line(plotter, line):
     print(raw.rstrip())
 
 
+def choose_file():
+    """Ask for a log file to replay with a file browser; None if cancelled or unavailable."""
+    try:
+        import tkinter
+        from tkinter import filedialog
+        root = tkinter.Tk()
+    except Exception as e:
+        print(f"warning: no file browser available: {e}", file=sys.stderr)
+        return None
+    # A withdrawn parent can leave the dialog minimized or behind other windows,
+    # so keep the root mapped but invisible and bring the dialog to the front
+    try:
+        root.attributes("-alpha", 0.0)
+        root.geometry("1x1+0+0")
+        root.attributes("-topmost", True)
+        root.update()
+        root.lift()
+        root.focus_force()
+        return filedialog.askopenfilename(
+            parent=root,
+            title="Select a log file to replay",
+            initialdir=os.getcwd(),
+            filetypes=[("Text logs", "*.txt *.log"), ("All files", "*")],
+        ) or None
+    finally:
+        root.destroy()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", help="Serial port (e.g. /dev/tty.usbmodem1234 or COM5)")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200; use 500000 when reading the PHA's own Serial1 output with --pha)")
-    parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port; use - to read from stdin")
+    parser.add_argument("--file", help="Replay lines from a saved log file instead of a live serial port; use - to read from stdin. With neither --port nor --file, a file browser opens to pick one")
     parser.add_argument("--speed", type=float, default=10.0, help="With --file, replay at this multiple of the log's real-time pace using its [HH:MM:SS.mmm] timestamps, skipping idle/standby periods (1 = real time, 10 = 10x faster, 0.5 = half speed). Use 0 for as fast as possible. Default: 10. Can also be changed during playback with the Speed box")
     parser.add_argument("--pha", action="store_true", help="Plot the PHA board's raw high/low gain spectra instead of the default StratoLPC size bins")
     args = parser.parse_args()
 
     if not args.file and not args.port:
-        parser.error("either --port or --file is required")
+        args.file = choose_file()
+        if not args.file:
+            parser.error("no --port or --file given, and no file was selected")
     # --speed only means something for file playback; silently ignored otherwise
     if args.file and args.speed < 0:
         parser.error("--speed must not be negative (0 = unpaced)")

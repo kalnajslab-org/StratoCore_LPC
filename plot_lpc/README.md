@@ -72,6 +72,9 @@ Data for the plot you didn't select is recognized and silently dropped. Lines th
 | `--port PORT [--baud N]` | A live serial port (default 115200 baud; use 500000 for the PHA's own Serial1 output, with `--pha`). |
 | `--file PATH` | A saved log file, replayed. |
 | `--file -` | Standard input, e.g. `cat log.txt \| plot-lpc-bins --file -`. |
+| (no source) | A file browser opens in the directory you started the program from, to pick a saved log to replay. Cancelling exits. |
+
+The file browser uses tkinter, which ships with Python on Windows and macOS (python.org installers) but is a separate package on some systems: `brew install python-tk` with Homebrew, or `sudo apt install python3-tk` on Debian/Ubuntu. Without it, pass `--file` or `--port` instead.
 
 Lines are auto-detected one at a time, so any mix of the formats below can appear on the same stream. A `[HH:MM:SS.mmm] ` timestamp prefix, as written by the logger, is ignored.
 
