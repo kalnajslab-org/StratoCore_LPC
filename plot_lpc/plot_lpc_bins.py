@@ -631,32 +631,43 @@ def dispatch_line(plotter, line):
     print(raw.rstrip())
 
 
+# Run in a child process: a Tk root created in this process can leave the dialog
+# on screen (or open it again) once matplotlib's own GUI backend starts up
+FILE_DIALOG_SCRIPT = """
+import os, sys, tkinter
+from tkinter import filedialog
+root = tkinter.Tk()
+# A withdrawn parent can leave the dialog minimized or behind other windows,
+# so keep the root mapped but invisible and bring the dialog to the front
+root.attributes("-alpha", 0.0)
+root.geometry("1x1+0+0")
+root.attributes("-topmost", True)
+root.update()
+root.lift()
+root.focus_force()
+path = filedialog.askopenfilename(
+    parent=root,
+    title="Select a log file to replay",
+    initialdir=os.getcwd(),
+    filetypes=[("Text logs", "*.txt *.log"), ("All files", "*")],
+)
+root.destroy()
+sys.stdout.write(path or "")
+"""
+
+
 def choose_file():
     """Ask for a log file to replay with a file browser; None if cancelled or unavailable."""
     try:
-        import tkinter
-        from tkinter import filedialog
-        root = tkinter.Tk()
-    except Exception as e:
+        result = subprocess.run([sys.executable, "-c", FILE_DIALOG_SCRIPT], capture_output=True, text=True)
+    except OSError as e:
         print(f"warning: no file browser available: {e}", file=sys.stderr)
         return None
-    # A withdrawn parent can leave the dialog minimized or behind other windows,
-    # so keep the root mapped but invisible and bring the dialog to the front
-    try:
-        root.attributes("-alpha", 0.0)
-        root.geometry("1x1+0+0")
-        root.attributes("-topmost", True)
-        root.update()
-        root.lift()
-        root.focus_force()
-        return filedialog.askopenfilename(
-            parent=root,
-            title="Select a log file to replay",
-            initialdir=os.getcwd(),
-            filetypes=[("Text logs", "*.txt *.log"), ("All files", "*")],
-        ) or None
-    finally:
-        root.destroy()
+    if result.returncode != 0:
+        err = result.stderr.strip().splitlines()
+        print(f"warning: no file browser available: {err[-1] if err else 'unknown error'}", file=sys.stderr)
+        return None
+    return result.stdout or None
 
 
 def main():
