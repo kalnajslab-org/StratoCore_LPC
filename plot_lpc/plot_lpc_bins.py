@@ -92,11 +92,12 @@ except ImportError:
 N_SIZE_BINS = 16  # StratoLPC's downsampled size bins (HGBins/LGBins)
 
 # --speed replay skips the waiting time while the log says the instrument is in
-# one of these states: no bins are produced then, and SB is entered silently
-# from FL_IDLE so it looks like a long FL_IDLE. Logs with no 'Entering <state>'
-# lines at all (e.g. PHA data) never match, so they are paced throughout.
+# any state other than these: no bins are produced outside FL_MEASURE (idle,
+# warmup, flush, telemetry, standby, ...), so waiting only shows a blank plot.
+# Logs with no 'Entering <state>' lines at all (e.g. PHA data) never match, so
+# they are paced throughout.
 ENTERING_RE = re.compile(r"NOM: Entering (\w+)")
-IDLE_STATES = {"FL", "FL_IDLE"}
+DATA_STATES = {"FL_MEASURE"}
 
 # Size (nm) of each StratoLPC size bin, as in the LPC data file's column header
 # (HG bins 0-15, then LG bins 0-15). Bin 15 of the LG set is always empty in
@@ -212,14 +213,18 @@ def parse_pha_debug_array_line(line, label):
     return values or None
 
 
+# Line prefixes from the two log sources: ZephyrSim's '[HH:MM:SS.mmm] ' and a
+# serial monitor's 'HH:MM:SS:mmm -> '
+LOG_PREFIX_RE = re.compile(r"(?:\[(\d\d):(\d\d):(\d\d)\.(\d{3})\] |(\d\d):(\d\d):(\d\d):(\d{3}) -> )")
+
+
 def parse_log_timestamp(line):
-    """Return seconds since midnight for a '[HH:MM:SS.mmm] ...' log line, else None."""
-    if len(line) < 14 or line[0] != "[" or line[13] != "]":
+    """Return seconds since midnight for a timestamped log line (either prefix style), else None."""
+    m = LOG_PREFIX_RE.match(line)
+    if not m:
         return None
-    try:
-        return int(line[1:3]) * 3600 + int(line[4:6]) * 60 + float(line[7:13])
-    except ValueError:
-        return None
+    h, mi, sec, ms = (int(g) for g in (m.group(1, 2, 3, 4) if m.group(1) else m.group(5, 6, 7, 8)))
+    return h * 3600 + mi * 60 + sec + ms / 1000
 
 
 def make_line_source(args):
@@ -237,7 +242,7 @@ def make_line_source(args):
                 if args.speed:
                     ts = parse_log_timestamp(line)
                     if ts is not None:
-                        if prev_ts is not None and state not in IDLE_STATES:
+                        if prev_ts is not None and (state is None or state in DATA_STATES):
                             # the gap belongs to the state we were in on the previous
                             # line; skip it while idle/standby since nothing is plotted
                             dt = (ts - prev_ts) % 86400  # tolerate midnight wrap
@@ -583,11 +588,10 @@ def dispatch_line(plotter, line):
     the PHA lines in particular are huge.
     """
     raw = line
-    # logger-saved files prefix each line with '[HH:MM:SS.mmm] '; drop it
-    if line.startswith("["):
-        end = line.find("] ")
-        if 0 < end <= 16:
-            line = line[end + 2:]
+    # saved files prefix each line with a timestamp (either style); drop it
+    m = LOG_PREFIX_RE.match(line)
+    if m:
+        line = line[m.end():]
     lpc = plotter.mode == "lpc"
     label, sep, value = line.partition(":")
     if sep and label in STATUS_FIELDS and value.strip():

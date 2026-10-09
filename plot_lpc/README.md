@@ -76,7 +76,7 @@ Data for the plot you didn't select is recognized and silently dropped. Lines th
 
 The file browser uses tkinter, which ships with Python on Windows and macOS (python.org installers) but is a separate package on some systems: `brew install python-tk` with Homebrew, or `sudo apt install python3-tk` on Debian/Ubuntu. Without it, pass `--file` or `--port` instead.
 
-Lines are auto-detected one at a time, so any mix of the formats below can appear on the same stream. A `[HH:MM:SS.mmm] ` timestamp prefix, as written by the logger, is ignored.
+Lines are auto-detected one at a time, so any mix of the formats below can appear on the same stream. A timestamp prefix is ignored, in either style: `[HH:MM:SS.mmm] ` as written by the logger (ZephyrSim), or `HH:MM:SS:mmm -> ` as written by a serial monitor capture. Both are also used to pace `--file` replay.
 
 | Format | Where it comes from | Plot |
 |---|---|---|
@@ -104,7 +104,7 @@ These appear when you use `--file`. A live `--port` has no controls, because pau
 | Restart | `r` | Starts again from the beginning of the file and clears the plots. Not available with `--file -`, since a pipe can't be rewound. |
 | Speed box | | Type a multiple of real time and press Enter, e.g. `20` or `0.5`. Blank, `0` or `max` replays as fast as possible. |
 
-Playback is paced from the log's own timestamps. Periods where the instrument is idle or in standby (no size-bin data is produced) are skipped rather than waited out, so you don't sit through the minutes between measurements.
+Playback is paced from the log's own timestamps. Whenever the log shows the instrument is in any state other than `FL_MEASURE` (standby, idle, warmup, flush, sending telemetry), no size-bin data is produced, so that time is skipped rather than waited out and you don't sit watching a blank plot. Logs with no `Entering <state>` lines, such as PHA data, are paced throughout.
 
 `--speed N` sets the starting speed (default **10**; `--speed 0` means unpaced). It is ignored with `--port`.
 
