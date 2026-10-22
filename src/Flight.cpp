@@ -129,7 +129,13 @@ void StratoLPC::FlightMode()
 
             inst_substate = FL_MEASURE;
             Frame = 0;
-            OPCSERIAL.flush();
+            OPCSERIAL.flush(); // waits for the TX side to drain; does NOT touch RX
+            // OPCSERIAL has been live since FL_WARMUP, silently buffering whatever
+            // the PHA sent during the Set_FlushingTime window (and the pump
+            // startup transient that happens at the same time) -- discard that
+            // backlog so Frame 0 starts from data genuinely captured after this
+            // point, not stale flush-period lines.
+            while (OPCSERIAL.available()) OPCSERIAL.read();
             log_nominal("Entering FL_MEASURE");
             MeasurementStartTime = now(); //record the time when we start to difference subsequent times from
             LastPHAActivityMillis = millis(); //start the PHA-silence watchdog fresh for this measurement
