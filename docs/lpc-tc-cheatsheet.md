@@ -21,7 +21,7 @@ not a live read of the firmware — re-check it after either file changes.
 | 107 | `SETLASERTEMP` | `setLaserTemp`: uint8 (°C)                            | → `Set_LaserTemp`. Default `-30°C`. |
 | 109 | `SETFLUSH`     | `lpc_flush`: uint8 (s)                                | → `Set_FlushingTime`. Default `10s`. |
 | 110 | `SETSAMPLEAVG` | `samplesToAverage`: uint16                            | → `Set_samplesToAverage`. PHA frames averaged per HK sample. Default `1`. |
-| 116 | `SETPHA`       | `phaHiGainThreshold`, `phaHiGainOffset`, `phaLoGainOffset`: uint16 | Stores all three and sets `Set_triggerPHAconfig`; applied to the PHA by `phaConfig()` at the next `FL_WARMUP`, not immediately. |
+| 116 | `SETPHA`       | `phaHiGainThreshold`, `phaHiGainOffset`, `phaLoGainOffset`: uint16 | Applied to the PHA by `phaConfig()` at the next `FL_WARMUP`, not immediately. **`0` in any field means "leave it alone"** — only non-zero fields get sent, so the PHA keeps whatever it already has loaded from its own EEPROM for the others. Mainly for in-flight emergency tweaks, typically threshold only; all-zero means nothing gets sent (and no `#save`). |
 | 117 | `REGENRS41`    | —                                                      | Sets `Set_rs41regen`; the actual `recondition()` call happens on the next `RS41_SAMPLE` tick, not synchronously. |
 | 118 | `SETFLOW`      | `flowSetpoint`: float                                 | Sets `BEMF1_SP` **and** `BEMF2_SP` — one value drives both pumps. Default `7.8V`. |
 | 119 | `SETPUMPTEMP`  | `pumpMinTemp`: float (°C)                             | → `PumpMinTemp`. Below this, `FL_IDLE` shuts back down instead of starting warm-up. Default `-20°C`. |

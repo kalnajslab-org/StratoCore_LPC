@@ -107,14 +107,18 @@ bool StratoLPC::TCHandler(Telecommand_t telecommand)
         log_error("LG bins unimplemented");
         break;
     case SETPHA:
+        // A field value of 0 means "leave this one alone" -- the PHA's
+        // working settings live in its own EEPROM (reloaded at its boot),
+        // so phaConfig() only sends the ones actually set here. This path
+        // is mainly for in-flight emergency tweaks, typically threshold only.
         Set_phaHiGainThreshold = lpcParam.phaHiGainThreshold;
         Set_phaHiGainOffset = lpcParam.phaHiGainOffset;
         Set_phaLoGainOffset = lpcParam.phaLoGainOffset;
         Set_triggerPHAconfig = true;
         ZephyrLogFine((String("TC: Change PHA requested")
-            + String(" HiGainThreshold:") + String(Set_phaHiGainThreshold)
-            + String(", HiGainOffset:") + String(Set_phaHiGainOffset)
-            + String(", LoGainOffset:") + String(Set_phaLoGainOffset)).c_str());
+            + String(" HiGainThreshold:") + (lpcParam.phaHiGainThreshold ? String(lpcParam.phaHiGainThreshold) : String("unchanged"))
+            + String(", HiGainOffset:") + (lpcParam.phaHiGainOffset ? String(lpcParam.phaHiGainOffset) : String("unchanged"))
+            + String(", LoGainOffset:") + (lpcParam.phaLoGainOffset ? String(lpcParam.phaLoGainOffset) : String("unchanged"))).c_str());
         break;
     case REGENRS41:
         Set_rs41regen = true;
@@ -741,27 +745,42 @@ void StratoLPC::phaConfig() {
             return;
         }
 
-    // Send the commands to the PHA
+    // Send the commands to the PHA. A value of 0 means "leave this field
+    // alone" -- only send the ones the ground actually requested, so an
+    // untouched field keeps whatever the PHA already has loaded from its
+    // own EEPROM instead of being overwritten with a bogus 0.
     String cmd;
+    bool sentAny = false;
 
-    delay(100);
-    cmd = String("#thresh,") + String(Set_phaHiGainThreshold) + String("\r");
-    OPCSERIAL.print(cmd.c_str());
-    log_nominal((String("PHA Hi Gain Threshold commanded: ") + cmd).c_str());
+    if (Set_phaHiGainThreshold != 0) {
+        delay(100);
+        cmd = String("#thresh,") + String(Set_phaHiGainThreshold) + String("\r");
+        OPCSERIAL.print(cmd.c_str());
+        log_nominal((String("PHA Hi Gain Threshold commanded: ") + cmd).c_str());
+        sentAny = true;
+    }
 
-    delay(100);
-    cmd = String("#hgoff,") + String(Set_phaHiGainOffset) + String("\r");
-    OPCSERIAL.print(cmd.c_str());
-    log_nominal((String("PHA Hi Gain Baseline Offset commanded: ") + cmd).c_str());
+    if (Set_phaHiGainOffset != 0) {
+        delay(100);
+        cmd = String("#hgoff,") + String(Set_phaHiGainOffset) + String("\r");
+        OPCSERIAL.print(cmd.c_str());
+        log_nominal((String("PHA Hi Gain Baseline Offset commanded: ") + cmd).c_str());
+        sentAny = true;
+    }
 
-    delay(100);
-    cmd = String("#lgoff,") + String(Set_phaLoGainOffset) + String("\r");
-    OPCSERIAL.print(cmd.c_str());
-    log_nominal((String("PHA Lo Gain Baseline Offset commanded: ") + cmd).c_str());
-    delay(100);
+    if (Set_phaLoGainOffset != 0) {
+        delay(100);
+        cmd = String("#lgoff,") + String(Set_phaLoGainOffset) + String("\r");
+        OPCSERIAL.print(cmd.c_str());
+        log_nominal((String("PHA Lo Gain Baseline Offset commanded: ") + cmd).c_str());
+        sentAny = true;
+    }
 
-    // Have the PHA save the new values
-    OPCSERIAL.print("#save\r");
+    // Have the PHA save the new values -- only if something was actually sent
+    if (sentAny) {
+        delay(100);
+        OPCSERIAL.print("#save\r");
+    }
 }
 
 void StratoLPC::writeLPCtoSD(int Records) {
